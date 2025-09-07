@@ -1,6 +1,6 @@
 <?php
-require_once '../config/database.php';
-require_once '../includes/functions.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/functions.php';
 
 if (isLoggedIn()) {
     $user_id = $_SESSION['user_id'];

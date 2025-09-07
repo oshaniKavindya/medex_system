@@ -1,0 +1,46 @@
+# Uploaded files - exclude all user uploads
+assets/uploads/*
+!assets/uploads/.gitkeep
+
+# But keep the directory structure
+!assets/uploads/applications/
+!assets/uploads/certificates/
+!assets/uploads/letters/
+assets/uploads/applications/*
+assets/uploads/certificates/*
+assets/uploads/letters/*
+!assets/uploads/applications/.gitkeep
+!assets/uploads/certificates/.gitkeep
+!assets/uploads/letters/.gitkeep
+
+# Environment and configuration files (exclude actual config, keep template)
+config/database.php
+!config/database.template.php
+
+# Logs
+*.log
+logs/
+error.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*.backup
+*.bak
+
+# Cache files
+cache/
+tmp/

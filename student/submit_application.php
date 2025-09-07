@@ -1,6 +1,6 @@
 <?php
 $pageTitle = 'Submit Medical Application';
-require_once '../includes/header.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/header.php';
 
 requireRole('student');
 
@@ -371,4 +371,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php require_once '../includes/footer.php'; ?>
+<?php require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/footer.php'; ?>

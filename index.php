@@ -7,16 +7,16 @@ if (isLoggedIn()) {
     $role = $_SESSION['role'];
     switch ($role) {
         case 'student':
-            header('Location: /medical_excuse_system/student/dashboard.php');
+            header('Location: /medex_system/student/dashboard.php');
             exit();
         case 'admin':
-            header('Location: /medical_excuse_system/admin/dashboard.php');
+            header('Location: /medex_system/admin/dashboard.php');
             exit();
         case 'hod':
-            header('Location: /medical_excuse_system/hod/dashboard.php');
+            header('Location: /medex_system/hod/dashboard.php');
             exit();
         case 'lecturer':
-            header('Location: /medical_excuse_system/lecturer/dashboard.php');
+            header('Location: /medex_system/lecturer/dashboard.php');
             exit();
     }
 }

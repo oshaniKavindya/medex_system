@@ -1,6 +1,6 @@
 <?php
 $pageTitle = 'Student Dashboard';
-require_once '../includes/header.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/header.php';
 
 requireRole('student');
 
@@ -212,4 +212,4 @@ try {
     </div>
 </div>
 
-<?php require_once '../includes/footer.php'; ?>
+<?php require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/footer.php'; ?>

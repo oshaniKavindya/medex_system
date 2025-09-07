@@ -3,8 +3,8 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
-require_once $_SERVER['DOCUMENT_ROOT'] . '/medical_excuse_system/config/database.php';
-require_once $_SERVER['DOCUMENT_ROOT'] . '/medical_excuse_system/includes/functions.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/functions.php';
 
 $currentUser = getCurrentUser();
 ?>
@@ -20,7 +20,7 @@ $currentUser = getCurrentUser();
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
     <!-- Custom CSS -->
-    <link href="/medical_excuse_system/assets/css/style.css" rel="stylesheet">
+    <link href="/medex_system/assets/css/style.css" rel="stylesheet">
     
     <?php if (isset($extraHead)) echo $extraHead; ?>
 </head>
@@ -28,7 +28,7 @@ $currentUser = getCurrentUser();
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="/medical_excuse_system/">
+            <a class="navbar-brand" href="/medex_system/">
                 <i class="fas fa-stethoscope me-2"></i>
                 Medical Excuse System
             </a>
@@ -42,60 +42,60 @@ $currentUser = getCurrentUser();
                     <ul class="navbar-nav me-auto">
                         <?php if (hasRole('student')): ?>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/student/dashboard.php">
+                                <a class="nav-link" href="/medex_system/student/dashboard.php">
                                     <i class="fas fa-tachometer-alt me-1"></i>Dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/student/submit_application.php">
+                                <a class="nav-link" href="/medex_system/student/submit_application.php">
                                     <i class="fas fa-plus-circle me-1"></i>Submit Application
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/student/view_applications.php">
+                                <a class="nav-link" href="/medex_system/student/view_applications.php">
                                     <i class="fas fa-list me-1"></i>My Applications
                                 </a>
                             </li>
                         <?php elseif (hasRole('admin')): ?>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/admin/dashboard.php">
+                                <a class="nav-link" href="/medex_system/admin/dashboard.php">
                                     <i class="fas fa-tachometer-alt me-1"></i>Dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/admin/manage_applications.php">
+                                <a class="nav-link" href="/medex_system/admin/manage_applications.php">
                                     <i class="fas fa-clipboard-list me-1"></i>Applications
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/admin/manage_users.php">
+                                <a class="nav-link" href="/medex_system/admin/manage_users.php">
                                     <i class="fas fa-users me-1"></i>Users
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/admin/manage_courses.php">
+                                <a class="nav-link" href="/medex_system/admin/manage_courses.php">
                                     <i class="fas fa-book me-1"></i>Courses
                                 </a>
                             </li>
                         <?php elseif (hasRole('hod')): ?>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/hod/dashboard.php">
+                                <a class="nav-link" href="/medex_system/hod/dashboard.php">
                                     <i class="fas fa-tachometer-alt me-1"></i>Dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/hod/review_applications.php">
+                                <a class="nav-link" href="/medex_system/hod/review_applications.php">
                                     <i class="fas fa-check-circle me-1"></i>Review Applications
                                 </a>
                             </li>
                         <?php elseif (hasRole('lecturer')): ?>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/lecturer/dashboard.php">
+                                <a class="nav-link" href="/medex_system/lecturer/dashboard.php">
                                     <i class="fas fa-tachometer-alt me-1"></i>Dashboard
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/medical_excuse_system/lecturer/view_approved.php">
+                                <a class="nav-link" href="/medex_system/lecturer/view_approved.php">
                                     <i class="fas fa-eye me-1"></i>Approved Applications
                                 </a>
                             </li>
@@ -149,10 +149,10 @@ $currentUser = getCurrentUser();
                                     <small class="text-muted"><?php echo getDepartmentName($currentUser['department']); ?></small>
                                 </h6></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/medical_excuse_system/profile.php">
+                                <li><a class="dropdown-item" href="/medex_system/profile.php">
                                     <i class="fas fa-user me-2"></i>Profile
                                 </a></li>
-                                <li><a class="dropdown-item" href="/medical_excuse_system/auth/logout.php">
+                                <li><a class="dropdown-item" href="/medex_system/auth/logout.php">
                                     <i class="fas fa-sign-out-alt me-2"></i>Logout
                                 </a></li>
                             </ul>
@@ -161,12 +161,12 @@ $currentUser = getCurrentUser();
                 <?php else: ?>
                     <ul class="navbar-nav ms-auto">
                         <li class="nav-item">
-                            <a class="nav-link" href="/medical_excuse_system/auth/login.php">
+                            <a class="nav-link" href="/medex_system/auth/login.php">
                                 <i class="fas fa-sign-in-alt me-1"></i>Login
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="/medical_excuse_system/auth/register.php">
+                            <a class="nav-link" href="/medex_system/auth/register.php">
                                 <i class="fas fa-user-plus me-1"></i>Register
                             </a>
                         </li>

@@ -1,6 +1,6 @@
 <?php
 $pageTitle = 'Login';
-require_once '../includes/header.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/header.php';
 
 // Redirect if already logged in
 if (isLoggedIn()) {
@@ -156,4 +156,4 @@ document.querySelector('form').addEventListener('submit', function(e) {
 });
 </script>
 
-<?php require_once '../includes/footer.php'; ?>
+<?php require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/footer.php'; ?>

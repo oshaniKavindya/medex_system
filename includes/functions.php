@@ -1,5 +1,5 @@
 <?php
-require_once '../config/database.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
 
 // Sanitize input
 function sanitize($input) {

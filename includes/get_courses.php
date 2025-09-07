@@ -1,6 +1,6 @@
 <?php
-require_once '../config/database.php';
-require_once 'functions.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/functions.php';
 
 header('Content-Type: application/json');
 

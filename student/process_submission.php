@@ -1,6 +1,6 @@
 <?php
-require_once '../config/database.php';
-require_once '../includes/functions.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/functions.php';
 
 requireRole('student');
 
@@ -70,7 +70,7 @@ try {
     }
     
     // Create upload directories
-    $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/medical_excuse_system/assets/uploads/';
+    $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/medex_system/assets/uploads/';
     $letterDir = $uploadDir . 'letters/';
     $applicationDir = $uploadDir . 'applications/';
     $certificateDir = $uploadDir . 'certificates/';

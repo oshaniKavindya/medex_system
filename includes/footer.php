@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     
     <!-- Custom JS -->
-    <script src="/medical_excuse_system/assets/js/main.js"></script>
+    <script src="/medex_system/assets/js/main.js"></script>
     
     <?php if (isset($extraFooter)) echo $extraFooter; ?>
 </body>
