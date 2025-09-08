@@ -60,10 +60,6 @@ try {
         $totalApplications = $countStmt->fetchColumn();
         $totalPages = ceil($totalApplications / $perPage);
         
-        // Add pagination parameters
-        $params[] = $perPage;
-        $params[] = $offset;
-        
         // Get applications
         $stmt = $pdo->prepare("
             SELECT a.*, c.course_name, c.course_code 
@@ -73,7 +69,17 @@ try {
             ORDER BY a.$sortBy $sortOrder 
             LIMIT ? OFFSET ?
         ");
-        $stmt->execute($params);
+        
+        // Bind parameters with explicit types
+        $paramIndex = 1;
+        foreach ($params as $param) {
+            $stmt->bindValue($paramIndex, $param);
+            $paramIndex++;
+        }
+        $stmt->bindValue($paramIndex, (int)$perPage, PDO::PARAM_INT);
+        $stmt->bindValue($paramIndex + 1, (int)$offset, PDO::PARAM_INT);
+        
+        $stmt->execute();
         $applications = $stmt->fetchAll();
     }
     

@@ -1,6 +1,8 @@
 <?php
-$pageTitle = 'Home';
-require_once 'includes/header.php';
+// Start session and check for redirects BEFORE including header
+session_start();
+require_once 'config/database.php';
+require_once 'includes/functions.php';
 
 // Redirect logged-in users to their respective dashboards
 if (isLoggedIn()) {
@@ -20,6 +22,10 @@ if (isLoggedIn()) {
             exit();
     }
 }
+
+// Now include header after redirect logic
+$pageTitle = 'Home';
+require_once 'includes/header.php';
 ?>
 
 <!-- Hero Section -->
@@ -198,7 +204,7 @@ if (isLoggedIn()) {
                 <ul class="list-unstyled">
                     <li><i class="fas fa-check text-success"></i> Subject code</li>
                     <li><i class="fas fa-check text-success"></i> Date of absence</li>
-                    <li><i class="fas fa-check text-success"></i> Reason (Lecture/Practical/CA)</li>
+                    <li><i class="fas fa-check text-success"></i> Reason (Assignment /Field Practical/CA)</li>
                 </ul>
             </div>
             <div class="col-md-4">

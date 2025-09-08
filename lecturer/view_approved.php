@@ -178,8 +178,8 @@ try {
                         <div class="col-md-6 mb-3">
                             <strong>Absence Type:</strong><br>
                             <span class="badge badge-<?php 
-                                echo $application['application_type'] === 'lecture' ? 'primary' : 
-                                    ($application['application_type'] === 'practical' ? 'warning' : 'info'); 
+                                echo $application['application_type'] === 'assignment' ? 'primary' : 
+                                    ($application['application_type'] === 'field_practical' ? 'warning' : 'info'); 
                             ?>">
                                 <?php echo ucfirst($application['application_type']); ?>
                             </span>
@@ -342,15 +342,15 @@ try {
                         </ul>
                     </div>
                     
-                    <?php if ($application['application_type'] === 'ca'): ?>
+                    <?php if ($application['application_type'] === 'exam'): ?>
                         <div class="alert alert-warning">
-                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Assessment Notice</h6>
-                            <p class="mb-0">This is for a Continuous Assessment. You may need to arrange an alternative assessment date for this student.</p>
+                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Exam Notice</h6>
+                            <p class="mb-0">This is for an Exam. You may need to arrange an alternative exam date or make-up assessment for this student.</p>
                         </div>
-                    <?php elseif ($application['application_type'] === 'practical'): ?>
+                    <?php elseif ($application['application_type'] === 'field_practical'): ?>
                         <div class="alert alert-warning">
-                            <h6><i class="fas fa-flask me-2"></i>Practical Notice</h6>
-                            <p class="mb-0">This is for a practical session. Consider if the student needs to make up the practical work.</p>
+                            <h6><i class="fas fa-flask me-2"></i>Field Practical Notice</h6>
+                            <p class="mb-0">This is for a Field Practical session. Please consider arranging a make-up practical or alternative fieldwork if possible.</p>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -416,9 +416,9 @@ try {
                     <label for="type" class="form-label">Filter by Type</label>
                     <select name="type" id="type" class="form-select">
                         <option value="">All Types</option>
-                        <option value="lecture" <?php echo $typeFilter === 'lecture' ? 'selected' : ''; ?>>Lecture</option>
-                        <option value="practical" <?php echo $typeFilter === 'practical' ? 'selected' : ''; ?>>Practical</option>
-                        <option value="ca" <?php echo $typeFilter === 'ca' ? 'selected' : ''; ?>>Assessment</option>
+                        <option value="assignment" <?php echo $typeFilter === 'assignment' ? 'selected' : ''; ?>>Assignment</option>
+                        <option value="field_practical" <?php echo $typeFilter === 'field_practical' ? 'selected' : ''; ?>>Field Practical</option>
+                        <option value="exam" <?php echo $typeFilter === 'exam' ? 'selected' : ''; ?>>Exam</option>
                     </select>
                 </div>
                 
@@ -502,8 +502,8 @@ try {
                                     </td>
                                     <td>
                                         <span class="badge badge-<?php 
-                                            echo $app['application_type'] === 'lecture' ? 'primary' : 
-                                                ($app['application_type'] === 'practical' ? 'warning' : 'info'); 
+                                            echo $app['application_type'] === 'assignment' ? 'primary' : 
+                                                ($app['application_type'] === 'field_practical' ? 'warning' : 'info'); 
                                         ?>">
                                             <?php echo ucfirst($app['application_type']); ?>
                                         </span>
@@ -592,8 +592,8 @@ try {
                     <div class="row">
                         <div class="col-md-4">
                             <div class="alert alert-info alert-permanent">
-                                <h6><i class="fas fa-chalkboard-teacher me-2"></i>Lecture Excuses</h6>
-                                <p class="mb-0">Students with approved lecture excuses were absent from regular class sessions. No specific action required unless you have attendance requirements.</p>
+                                <h6><i class="fas fa-chalkboard-teacher me-2"></i>Assignment Excuses</h6>
+                                <p class="mb-0">Students with approved assignment excuses missed assignment deadlines due to medical reasons. Please consider allowing them to submit late or provide an alternative assignment if appropriate.</p>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -604,8 +604,8 @@ try {
                         </div>
                         <div class="col-md-4">
                             <div class="alert alert-secondary alert-permanent">
-                                <h6><i class="fas fa-file-alt me-2"></i>Assessment Excuses</h6>
-                                <p class="mb-0">Students missed continuous assessments. You may need to arrange alternative assessment dates or methods.</p>
+                                <h6><i class="fas fa-file-alt me-2"></i>Exam Excuses</h6>
+                                <p class="mb-0">Students missed exams. You may need to arrange alternative exam dates or methods.</p>
                             </div>
                         </div>
                     </div>

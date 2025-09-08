@@ -189,12 +189,12 @@ try {
                 </h5>
             </div>
             <div class="card-body">
-                <div class="alert alert-info">
+                <div class="alert alert-info alert-permanent">
                     <h6><i class="fas fa-calendar-alt me-1"></i> Submission Deadline</h6>
                     <small>Medical excuses must be submitted within <strong>14 days</strong> of absence.</small>
                 </div>
                 
-                <div class="alert alert-warning">
+                <div class="alert alert-warning alert-permanent">
                     <h6><i class="fas fa-file-medical me-1"></i> Required Documents</h6>
                     <small>
                         • Letter with subject/date/reason<br>
@@ -203,7 +203,7 @@ try {
                     </small>
                 </div>
                 
-                <div class="alert alert-success">
+                <div class="alert alert-success alert-permanent">
                     <h6><i class="fas fa-check-circle me-1"></i> Processing Time</h6>
                     <small>Applications are typically processed within <strong>3-5 business days</strong>.</small>
                 </div>

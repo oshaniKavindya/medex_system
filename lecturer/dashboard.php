@@ -43,9 +43,9 @@ try {
             c.course_name,
             c.year,
             COUNT(*) as app_count,
-            SUM(CASE WHEN a.application_type = 'lecture' THEN 1 ELSE 0 END) as lecture_count,
-            SUM(CASE WHEN a.application_type = 'practical' THEN 1 ELSE 0 END) as practical_count,
-            SUM(CASE WHEN a.application_type = 'ca' THEN 1 ELSE 0 END) as ca_count
+            SUM(CASE WHEN a.application_type = 'assignment' THEN 1 ELSE 0 END) as assignment_count,
+            SUM(CASE WHEN a.application_type = 'field_practical' THEN 1 ELSE 0 END) as field_practical_count,
+            SUM(CASE WHEN a.application_type = 'exam' THEN 1 ELSE 0 END) as exam_count
         FROM applications a
         JOIN courses c ON a.course_id = c.id
         JOIN users u ON a.student_id = u.id
@@ -171,8 +171,8 @@ try {
                                         </td>
                                         <td>
                                             <span class="badge bg-<?php 
-                                                echo $app['application_type'] === 'lecture' ? 'primary' : 
-                                                    ($app['application_type'] === 'practical' ? 'warning' : 'info'); 
+                                                echo $app['application_type'] === 'assignment' ? 'primary' : 
+                                                    ($app['application_type'] === 'field_practical' ? 'warning' : 'info'); 
                                             ?>">
                                                 <?php echo ucfirst($app['application_type']); ?>
                                             </span>
@@ -244,14 +244,14 @@ try {
                             <a href="view_approved.php?status=hod_approved" class="btn btn-outline-success btn-sm">
                                 <i class="fas fa-check me-1"></i>Recent
                             </a>
-                            <a href="view_approved.php?type=lecture" class="btn btn-outline-info btn-sm">
-                                <i class="fas fa-chalkboard-teacher me-1"></i>Lecture
+                            <a href="view_approved.php?type=assignment" class="btn btn-outline-info btn-sm">
+                                <i class="fas fa-chalkboard-teacher me-1"></i>Assignment
                             </a>
-                            <a href="view_approved.php?type=practical" class="btn btn-outline-warning btn-sm">
-                                <i class="fas fa-flask me-1"></i>Practical
+                            <a href="view_approved.php?type=field_practical" class="btn btn-outline-warning btn-sm">
+                                <i class="fas fa-flask me-1"></i>Field Practical
                             </a>
-                            <a href="view_approved.php?type=ca" class="btn btn-outline-secondary btn-sm">
-                                <i class="fas fa-file-alt me-1"></i>Assessment
+                            <a href="view_approved.php?type=exam" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-file-alt me-1"></i>Exam
                             </a>
                         </div>
                     </div>
@@ -321,9 +321,9 @@ try {
                 <div class="alert alert-warning alert-permanent">
                     <h6><i class="fas fa-exclamation-triangle me-2"></i>Important Notes</h6>
                     <ul class="mb-0 small">
-                        <li><strong>Lecture:</strong> Regular class attendance excuse</li>
-                        <li><strong>Practical:</strong> Laboratory/practical session excuse</li>
-                        <li><strong>CA:</strong> Continuous Assessment excuse</li>
+                        <li><strong>Assignment:</strong> Assignment/classwork excuse</li>
+                        <li><strong>Field Practical:</strong> Field practical/laboratory session excuse</li>
+                        <li><strong>Exam:</strong> Exam/Continuous Assessment excuse</li>
                     </ul>
                 </div>
             </div>
@@ -375,14 +375,14 @@ const monthlyChart = new Chart(monthlyCtx, {
 // Application Type Distribution Chart
 <?php 
 $typeData = [
-    'lecture' => 0,
-    'practical' => 0,
-    'ca' => 0
+    'assignment' => 0,
+    'field_practical' => 0,
+    'exam' => 0
 ];
 foreach ($course_stats as $course) {
-    $typeData['lecture'] += $course['lecture_count'];
-    $typeData['practical'] += $course['practical_count'];
-    $typeData['ca'] += $course['ca_count'];
+    $typeData['assignment'] += $course['assignment_count'];
+    $typeData['field_practical'] += $course['field_practical_count'];
+    $typeData['exam'] += $course['exam_count'];
 }
 ?>
 
@@ -390,12 +390,12 @@ const typeCtx = document.getElementById('typeChart').getContext('2d');
 const typeChart = new Chart(typeCtx, {
     type: 'doughnut',
     data: {
-        labels: ['Lecture', 'Practical', 'Assessment'],
+        labels: ['Assignment ', 'Field Practical', 'Exam'],
         datasets: [{
             data: [
-                <?php echo $typeData['lecture']; ?>,
-                <?php echo $typeData['practical']; ?>,
-                <?php echo $typeData['ca']; ?>
+                <?php echo $typeData['assignment']; ?>,
+                <?php echo $typeData['field_practical']; ?>,
+                <?php echo $typeData['exam']; ?>
             ],
             backgroundColor: [
                 '#007bff',

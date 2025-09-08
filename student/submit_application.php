@@ -53,9 +53,9 @@ $courses = getCoursesByDepartmentYear($user['department'], $user['year']);
                                 <label for="application_type" class="form-label">Absence Type *</label>
                                 <select class="form-select" id="application_type" name="application_type" required>
                                     <option value="">Select type</option>
-                                    <option value="lecture">Lecture</option>
-                                    <option value="practical">Practical</option>
-                                    <option value="ca">Continuous Assessment (CA)</option>
+                                    <option value="assignment">Assignment</option>
+                                    <option value="field_practical">Field Practical</option>
+                                    <option value="exam">Exam</option>
                                 </select>
                                 <div class="invalid-feedback">
                                     Please select the type of absence.

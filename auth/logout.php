@@ -29,7 +29,7 @@ if (isLoggedIn()) {
     $_SESSION['success_message'] = 'You have been logged out successfully.';
 }
 
-// Redirect to login page
-header('Location: login.php');
+// Redirect to index page
+header('Location: ../index.php');
 exit();
 ?>

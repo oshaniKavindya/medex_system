@@ -73,7 +73,7 @@ function initializeDatabase() {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 student_id INT NOT NULL,
                 course_id INT NOT NULL,
-                application_type ENUM('exam', 'practical', 'assignment', 'other') NOT NULL,
+                application_type ENUM('exam', 'field_practical', 'assignment', 'other') NOT NULL,
                 application_date DATE NOT NULL,
                 application_time TIME,
                 reason TEXT NOT NULL,
