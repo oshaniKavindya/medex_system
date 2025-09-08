@@ -5,6 +5,7 @@ A PHP-based web application for managing medical excuse applications in educatio
 ## Setup Instructions
 
 ### 1. Database Configuration
+
 1. Copy `config/database.template.php` to `config/database.php`
 2. Update the database credentials in `config/database.php`:
    ```php
@@ -15,15 +16,19 @@ A PHP-based web application for managing medical excuse applications in educatio
    ```
 
 ### 2. Directory Permissions
+
 Ensure the uploads directory has write permissions:
+
 ```bash
 chmod -R 755 assets/uploads/
 ```
 
 ### 3. Database Setup
+
 The application will automatically create the database and tables on first run.
 
 ## File Structure
+
 ```
 medex_system/
 ├── admin/              # Admin panel files
@@ -41,6 +46,7 @@ medex_system/
 ```
 
 ## Features
+
 - Student medical excuse application submission
 - Multi-level approval workflow (Lecturer → HOD)
 - File upload management
@@ -48,10 +54,12 @@ medex_system/
 - Application tracking and status updates
 
 ## Security
+
 - All uploaded files are excluded from version control
 - Database configuration is template-based
 - Input sanitization and validation
 - Role-based access control
 
 ## Development
+
 When pushing to GitHub, sensitive files and uploads are automatically excluded via `.gitignore`.

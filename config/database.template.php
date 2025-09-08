@@ -1,13 +1,11 @@
 <?php
-// Database configuration template
-// Copy this file to database.php and update with your actual database credentials
+
 
 define('DB_HOST', 'localhost');
 define('DB_USER', 'your_username');
 define('DB_PASS', 'your_password');
 define('DB_NAME', 'medex_system');
 
-// Create connection
 function getConnection() {
     try {
         $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
@@ -19,17 +17,13 @@ function getConnection() {
     }
 }
 
-// Test connection and create database if it doesn't exist
 function testConnection() {
     try {
-        // First try to connect without database to create it if needed
         $pdo = new PDO("mysql:host=" . DB_HOST, DB_USER, DB_PASS);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
-        // Create database if it doesn't exist
         $pdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         
-        // Now connect to the specific database
         $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
@@ -40,12 +34,10 @@ function testConnection() {
     }
 }
 
-// Initialize database tables
 function initializeDatabase() {
     try {
         $pdo = getConnection();
         
-        // Create users table
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -62,7 +54,6 @@ function initializeDatabase() {
             )
         ");
         
-        // Create courses table
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS courses (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -77,7 +68,6 @@ function initializeDatabase() {
             )
         ");
         
-        // Create applications table
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS applications (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -112,7 +102,6 @@ function initializeDatabase() {
     }
 }
 
-// Call this once to set up the database
 if (!function_exists('setupDatabase')) {
     function setupDatabase() {
         if (testConnection()) {
