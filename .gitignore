@@ -44,3 +44,8 @@ Thumbs.db
 # Cache files
 cache/
 tmp/
+
+# Documentation files (exclude from repository)
+ASSIGNMENT_DOCUMENTATION.md
+ASSIGNMENT_DOCUMENTATION_FOR_WORD.txt
+SYSTEM_DOCUMENTATION.md

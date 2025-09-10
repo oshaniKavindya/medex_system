@@ -13,7 +13,7 @@ try {
     $pdo = getConnection();
     
     if ($viewSingle) {
-        // Get single application details
+        // Get single application details - only if assigned to this lecturer
         $stmt = $pdo->prepare("
             SELECT a.*, c.course_name, c.course_code, c.department, c.year,
                    u.full_name as student_name, u.email as student_email, 
@@ -25,9 +25,13 @@ try {
             JOIN users u ON a.student_id = u.id
             LEFT JOIN users admin ON a.admin_reviewed_by = admin.id
             LEFT JOIN users hod ON a.hod_reviewed_by = hod.id
-            WHERE a.id = ? AND u.department = ? AND a.status IN ('hod_approved', 'completed')
+            WHERE a.id = ? 
+            AND u.department = ? 
+            AND a.lecturer_assigned_by IS NOT NULL
+            AND EXISTS (SELECT 1 FROM lecturer_notifications ln WHERE ln.application_id = a.id AND ln.lecturer_id = ?)
+            AND a.status IN ('hod_approved', 'completed')
         ");
-        $stmt->execute([$viewSingle, $user['department']]);
+        $stmt->execute([$viewSingle, $user['department'], $user['id']]);
         $application = $stmt->fetch();
         
         if (!$application) {
@@ -50,9 +54,13 @@ try {
         error_log("Lecturer View Approved - GET params: " . print_r($_GET, true));
         error_log("Lecturer View Approved - Filters: status=$statusFilter, type=$typeFilter, course=$courseFilter");
         
-        // Build WHERE conditions
-        $whereConditions = ['u.department = ?'];
-        $params = [$user['department']];
+        // Build WHERE conditions - only show applications assigned to this lecturer
+        $whereConditions = [
+            'u.department = ?',
+            'a.lecturer_assigned_by IS NOT NULL',
+            'EXISTS (SELECT 1 FROM lecturer_notifications ln WHERE ln.application_id = a.id AND ln.lecturer_id = ?)'
+        ];
+        $params = [$user['department'], $user['id']];
         
         // Handle status filter
         if (!empty($statusFilter)) {

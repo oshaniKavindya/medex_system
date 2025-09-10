@@ -1,14 +1,11 @@
 <?php
-session_start();
 require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/functions.php';
 
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('log_errors', 1);
-
 requireRole('hod');
+
+// Return JSON for AJAX requests
+header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: review_applications.php');
@@ -17,17 +14,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $user = getCurrentUser();
 
-// Debug logging
-error_log("HOD Process Approval - User ID: " . $user['id'] . ", Department: " . $user['department']);
-error_log("POST data: " . print_r($_POST, true));
-
 try {
     $pdo = getConnection();
     
     $application_id = (int)($_POST['application_id'] ?? 0);
-    $decision = sanitize($_POST['decision'] ?? '');
+    $action = sanitize($_POST['action'] ?? '');
     
-    if (empty($application_id) || !in_array($decision, ['approve', 'reject'])) {
+    if (empty($application_id) || $action !== 'approve') {
         $_SESSION['error_message'] = 'Invalid parameters.';
         header('Location: review_applications.php');
         exit();
@@ -57,13 +50,20 @@ try {
         exit();
     }
     
+    $decision = sanitize($_POST['decision'] ?? '');
     $comments = sanitize($_POST['comments'] ?? '');
+    
+    if (!in_array($decision, ['approve', 'reject'])) {
+        $_SESSION['error_message'] = 'Invalid decision.';
+        header('Location: review_applications.php?id=' . $application_id);
+        exit();
+    }
     
     $pdo->beginTransaction();
     
     try {
         if ($decision === 'approve') {
-            // Approve application
+            // Approve application and send back to admin for lecturer assignment
             $stmt = $pdo->prepare("
                 UPDATE applications 
                 SET status = 'hod_approved', 
@@ -79,38 +79,21 @@ try {
             
             // Notify student
             addNotification($application['student_id'], 
-                'Your medical excuse application has been approved by the HOD. Relevant lecturers will be notified.', 
+                'Your medical excuse application has been approved by the HOD. The admin will now assign it to the relevant lecturer.', 
                 'success', $application_id);
             
-            // Notify all admins
+            // Notify all admins to assign lecturer
             $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
             $stmt->execute();
             $admins = $stmt->fetchAll();
             
             foreach ($admins as $admin) {
                 addNotification($admin['id'], 
-                    "Application ID: $application_id has been approved by HOD. Please notify relevant lecturers.", 
+                    "Application ID: $application_id has been approved by HOD. Please assign it to the relevant lecturer.", 
                     'info', $application_id);
             }
             
-            // Get lecturers for this course/department to notify
-            $stmt = $pdo->prepare("
-                SELECT DISTINCT u.id, u.full_name, u.email 
-                FROM users u 
-                WHERE u.role = 'lecturer' 
-                AND u.department = ? 
-                AND u.status = 'active'
-            ");
-            $stmt->execute([$application['student_dept']]);
-            $lecturers = $stmt->fetchAll();
-            
-            foreach ($lecturers as $lecturer) {
-                addNotification($lecturer['id'], 
-                    "Medical excuse approved for {$application['student_name']} in {$application['course_code']} - {$application['course_name']}", 
-                    'info', $application_id);
-            }
-            
-            $message = 'Application approved successfully. Lecturers have been notified.';
+            $message = 'Application approved successfully. Admin will now assign it to the relevant lecturer.';
             
         } else {
             // Reject application
@@ -148,10 +131,6 @@ try {
         
         $pdo->commit();
         $_SESSION['success_message'] = $message;
-        
-        // Debug logging
-        error_log("HOD Process Approval - Success: " . $message);
-        
         header('Location: review_applications.php');
         exit();
         

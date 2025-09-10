@@ -13,9 +13,9 @@ try {
     $stmt = $pdo->prepare("
         SELECT 
             COUNT(*) as total_applications,
-            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN status IN ('pending', 'hod_approved') THEN 1 ELSE 0 END) as pending,
             SUM(CASE WHEN status = 'admin_reviewed' THEN 1 ELSE 0 END) as reviewed,
-            SUM(CASE WHEN status = 'hod_approved' THEN 1 ELSE 0 END) as approved,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as approved,
             SUM(CASE WHEN status IN ('admin_rejected', 'hod_rejected') THEN 1 ELSE 0 END) as rejected,
             SUM(CASE WHEN DATE(submitted_at) = CURDATE() THEN 1 ELSE 0 END) as today_submissions
         FROM applications
@@ -23,14 +23,18 @@ try {
     $stmt->execute();
     $stats = $stmt->fetch();
     
-    // Get recent applications needing review
+    // Get recent applications needing review or lecturer assignment
     $stmt = $pdo->prepare("
         SELECT a.*, c.course_name, c.course_code, u.full_name as student_name, u.department, u.year
         FROM applications a 
         JOIN courses c ON a.course_id = c.id 
         JOIN users u ON a.student_id = u.id
-        WHERE a.status = 'pending'
-        ORDER BY a.submitted_at ASC 
+        WHERE a.status IN ('pending', 'hod_approved')
+        ORDER BY 
+            CASE 
+                WHEN a.status = 'pending' THEN 1 
+                WHEN a.status = 'hod_approved' THEN 2 
+            END, a.submitted_at ASC 
         LIMIT 8
     ");
     $stmt->execute();
@@ -54,7 +58,7 @@ try {
         SELECT 
             u.department,
             COUNT(*) as app_count,
-            SUM(CASE WHEN a.status = 'pending' THEN 1 ELSE 0 END) as pending_count
+            SUM(CASE WHEN a.status IN ('pending', 'hod_approved') THEN 1 ELSE 0 END) as pending_count
         FROM applications a
         JOIN users u ON a.student_id = u.id
         GROUP BY u.department
@@ -99,13 +103,13 @@ try {
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="stats-card stats-warning">
             <div class="stats-number"><?php echo $stats['pending']; ?></div>
-            <div class="stats-label">Pending Review</div>
+            <div class="stats-label">Require Action</div>
         </div>
     </div>
     <div class="col-lg-3 col-md-6 mb-4">
         <div class="stats-card stats-success">
             <div class="stats-number"><?php echo $stats['approved']; ?></div>
-            <div class="stats-label">Approved</div>
+            <div class="stats-label">Completed</div>
         </div>
     </div>
     <div class="col-lg-3 col-md-6 mb-4">
@@ -123,7 +127,7 @@ try {
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
                     <i class="fas fa-clock me-2"></i>
-                    Applications Pending Review
+                    Applications Requiring Action
                 </h5>
                 <a href="manage_applications.php" class="btn btn-outline-primary btn-sm">
                     View All
@@ -133,7 +137,8 @@ try {
                 <?php if (empty($pending_applications)): ?>
                     <div class="text-center py-4">
                         <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-                        <p class="text-muted">All applications have been reviewed!</p>
+                        <p class="text-muted">No applications requiring action!</p>
+                        <small class="text-muted">All applications are either under review or have been processed.</small>
                     </div>
                 <?php else: ?>
                     <div class="table-responsive">
@@ -144,6 +149,7 @@ try {
                                     <th>Student</th>
                                     <th>Course</th>
                                     <th>Type</th>
+                                    <th>Status</th>
                                     <th>Submitted</th>
                                     <th>Action</th>
                                 </tr>
@@ -164,18 +170,37 @@ try {
                                         </td>
                                         <td>
                                             <span class="badge badge-secondary">
-                                                <?php echo ucfirst($app['application_type']); ?>
+                                                <?php 
+                                                $display_type = ucfirst($app['application_type']);
+                                                if ($app['application_type'] == 'field_practical') {
+                                                    $display_type = 'Field Practical';
+                                                }
+                                                echo $display_type;
+                                                ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge <?php echo getStatusBadgeClass($app['status']); ?>">
+                                                <?php echo formatStatus($app['status']); ?>
                                             </span>
                                         </td>
                                         <td>
                                             <?php echo date('M j, g:i A', strtotime($app['submitted_at'])); ?>
                                         </td>
                                         <td>
-                                            <a href="manage_applications.php?id=<?php echo $app['id']; ?>" 
-                                               class="btn btn-primary btn-sm">
-                                                <i class="fas fa-eye me-1"></i>
-                                                Review
-                                            </a>
+                                            <?php if ($app['status'] === 'pending'): ?>
+                                                <a href="manage_applications.php?id=<?php echo $app['id']; ?>" 
+                                                   class="btn btn-primary btn-sm">
+                                                    <i class="fas fa-eye me-1"></i>
+                                                    Review
+                                                </a>
+                                            <?php elseif ($app['status'] === 'hod_approved'): ?>
+                                                <a href="assign_lecturer.php?id=<?php echo $app['id']; ?>" 
+                                                   class="btn btn-warning btn-sm">
+                                                    <i class="fas fa-user-plus me-1"></i>
+                                                    Assign Lecturer
+                                                </a>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -342,7 +367,7 @@ try {
                     
                     <div class="col-md-6">
                         <h6>System Health</h6>
-                        <div class="alert alert-<?php echo $stats['pending'] > 10 ? 'warning' : 'success'; ?>">
+                        <div class="alert alert-permanent alert-<?php echo $stats['pending'] > 10 ? 'warning' : 'success'; ?>">
                             <i class="fas fa-<?php echo $stats['pending'] > 10 ? 'exclamation-triangle' : 'check-circle'; ?> me-2"></i>
                             <?php if ($stats['pending'] > 10): ?>
                                 High pending queue detected. Consider reviewing applications.
@@ -351,7 +376,7 @@ try {
                             <?php endif; ?>
                         </div>
                         
-                        <div class="alert alert-info">
+                        <div class="alert alert-info alert-permanent">
                             <i class="fas fa-info-circle me-2"></i>
                             Today: <?php echo $stats['today_submissions']; ?> new submissions received.
                         </div>

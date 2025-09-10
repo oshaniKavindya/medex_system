@@ -9,34 +9,45 @@ $user = getCurrentUser();
 try {
     $pdo = getConnection();
     
-    // Get approved applications for this lecturer's department
+    // Get applications assigned to this lecturer only
     $stmt = $pdo->prepare("
         SELECT 
             COUNT(*) as total_approved,
-            SUM(CASE WHEN DATE(a.approved_at) = CURDATE() THEN 1 ELSE 0 END) as today_approved,
-            SUM(CASE WHEN DATE(a.approved_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as week_approved,
-            SUM(CASE WHEN DATE(a.approved_at) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as month_approved
+            SUM(CASE WHEN DATE(a.lecturer_assigned_at) = CURDATE() THEN 1 ELSE 0 END) as today_approved,
+            SUM(CASE WHEN DATE(a.lecturer_assigned_at) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as week_approved,
+            SUM(CASE WHEN DATE(a.lecturer_assigned_at) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as month_approved
         FROM applications a
-        JOIN users u ON a.student_id = u.id
-        WHERE u.department = ? AND a.status IN ('hod_approved', 'completed')
+        WHERE a.lecturer_assigned_by IS NOT NULL 
+        AND EXISTS (
+            SELECT 1 FROM lecturer_notifications ln 
+            WHERE ln.application_id = a.id 
+            AND ln.lecturer_id = ?
+        )
+        AND a.status IN ('hod_approved', 'completed')
     ");
-    $stmt->execute([$user['department']]);
+    $stmt->execute([$user['id']]);
     $stats = $stmt->fetch();
     
-    // Get recent approved applications
+    // Get recent applications assigned to this lecturer
     $stmt = $pdo->prepare("
         SELECT a.*, c.course_name, c.course_code, u.full_name as student_name, u.year as student_year
         FROM applications a 
         JOIN courses c ON a.course_id = c.id 
         JOIN users u ON a.student_id = u.id
-        WHERE u.department = ? AND a.status IN ('hod_approved', 'completed')
-        ORDER BY a.approved_at DESC 
+        WHERE a.lecturer_assigned_by IS NOT NULL 
+        AND EXISTS (
+            SELECT 1 FROM lecturer_notifications ln 
+            WHERE ln.application_id = a.id 
+            AND ln.lecturer_id = ?
+        )
+        AND a.status IN ('hod_approved', 'completed')
+        ORDER BY a.lecturer_assigned_at DESC 
         LIMIT 10
     ");
-    $stmt->execute([$user['department']]);
+    $stmt->execute([$user['id']]);
     $recent_approved = $stmt->fetchAll();
     
-    // Get applications by course
+    // Get applications by course for this lecturer only
     $stmt = $pdo->prepare("
         SELECT 
             c.course_code,
@@ -48,29 +59,41 @@ try {
             SUM(CASE WHEN a.application_type = 'exam' THEN 1 ELSE 0 END) as exam_count
         FROM applications a
         JOIN courses c ON a.course_id = c.id
-        JOIN users u ON a.student_id = u.id
-        WHERE u.department = ? AND a.status IN ('hod_approved', 'completed')
+        WHERE a.lecturer_assigned_by IS NOT NULL 
+        AND EXISTS (
+            SELECT 1 FROM lecturer_notifications ln 
+            WHERE ln.application_id = a.id 
+            AND ln.lecturer_id = ?
+        )
+        AND a.status IN ('hod_approved', 'completed')
         GROUP BY c.id
         ORDER BY app_count DESC, c.course_code
         LIMIT 10
     ");
-    $stmt->execute([$user['department']]);
+    $stmt->execute([$user['id']]);
     $course_stats = $stmt->fetchAll();
     
-    // Get monthly trends
+    // Get monthly trends for applications assigned to this lecturer
     $stmt = $pdo->prepare("
         SELECT 
-            YEAR(a.approved_at) as year,
-            MONTH(a.approved_at) as month,
+            YEAR(a.lecturer_assigned_at) as year,
+            MONTH(a.lecturer_assigned_at) as month,
             COUNT(*) as count
         FROM applications a
         JOIN users u ON a.student_id = u.id
-        WHERE u.department = ? AND a.status IN ('hod_approved', 'completed')
-        AND a.approved_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-        GROUP BY YEAR(a.approved_at), MONTH(a.approved_at)
+        WHERE u.department = ? 
+        AND a.lecturer_assigned_by IS NOT NULL 
+        AND EXISTS (
+            SELECT 1 FROM lecturer_notifications ln 
+            WHERE ln.application_id = a.id 
+            AND ln.lecturer_id = ?
+        )
+        AND a.status IN ('hod_approved', 'completed')
+        AND a.lecturer_assigned_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY YEAR(a.lecturer_assigned_at), MONTH(a.lecturer_assigned_at)
         ORDER BY year DESC, month DESC
     ");
-    $stmt->execute([$user['department']]);
+    $stmt->execute([$user['department'], $user['id']]);
     $monthly_trends = $stmt->fetchAll();
     
 } catch (PDOException $e) {
