@@ -164,6 +164,7 @@ try {
                                 <?php echo formatStatus($application['status']); ?>
                             </span>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -489,7 +490,7 @@ try {
                                         </span>
                                     </td>
                                     <td>
-                                        <div class="btn-group" role="group">
+                                        <!-- <div class="btn-group" role="group">
                                             <a href="manage_applications.php?id=<?php echo $app['id']; ?>" 
                                                class="btn btn-primary btn-sm" title="Review">
                                                 <i class="fas fa-eye"></i>
@@ -504,8 +505,33 @@ try {
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             <?php endif; ?>
+                                        </div> -->
+
+
+                                        <div class="btn-group" role="group">
+                                            <a href="manage_applications.php?id=<?php echo $app['id']; ?>" 
+                                               class="btn btn-primary btn-sm" title="Review">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <?php if ($app['status'] === 'pending'): ?>
+                                                <button type="button" class="btn btn-success btn-sm" 
+                                                        onclick="quickApprove(<?php echo $app['id']; ?>)" title="Quick Approve">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-danger btn-sm" 
+                                                        onclick="quickReject(<?php echo $app['id']; ?>)" title="Quick Reject">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            <?php elseif ($app['status'] === 'hod_approved'): ?>
+                                                <a href="assign_lecturer.php?id=<?php echo $app['id']; ?>" 
+                                                   class="btn btn-warning btn-sm" title="Assign to Lecturer">
+                                                    <i class="fas fa-user-plus"></i>
+                                                </a>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
+
+
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

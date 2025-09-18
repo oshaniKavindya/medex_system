@@ -1,6 +1,7 @@
 <?php
-$pageTitle = 'View Approved Applications';
-require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/header.php';
+session_start();
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/functions.php';
 
 requireRole('lecturer');
 
@@ -9,10 +10,20 @@ $user = getCurrentUser();
 // Handle single application view
 $viewSingle = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
+// Initialize variables
+$application = null;
+$applications = [];
+$error_message = '';
+
 try {
     $pdo = getConnection();
     
     if ($viewSingle) {
+        // Debug: Log the parameters
+        error_log("DEBUG: Looking for application ID: $viewSingle");
+        error_log("DEBUG: Lecturer ID: " . $user['id']);
+        error_log("DEBUG: Lecturer department: " . $user['department']);
+        
         // Get single application details - only if assigned to this lecturer
         $stmt = $pdo->prepare("
             SELECT a.*, c.course_name, c.course_code, c.department, c.year,
@@ -26,13 +37,28 @@ try {
             LEFT JOIN users admin ON a.admin_reviewed_by = admin.id
             LEFT JOIN users hod ON a.hod_reviewed_by = hod.id
             WHERE a.id = ? 
-            AND u.department = ? 
             AND a.lecturer_assigned_by IS NOT NULL
             AND EXISTS (SELECT 1 FROM lecturer_notifications ln WHERE ln.application_id = a.id AND ln.lecturer_id = ?)
             AND a.status IN ('hod_approved', 'completed')
         ");
-        $stmt->execute([$viewSingle, $user['department'], $user['id']]);
+        $stmt->execute([$viewSingle, $user['id']]);
         $application = $stmt->fetch();
+        
+        // Debug: Log what we found
+        if ($application) {
+            error_log("DEBUG: Found application. Student dept: " . $application['student_dept'] . ", Course dept: " . $application['department']);
+        } else {
+            error_log("DEBUG: Application not found with current query");
+            // Try simpler query to see if application exists at all
+            $debugStmt = $pdo->prepare("SELECT a.*, u.department as student_dept FROM applications a JOIN users u ON a.student_id = u.id WHERE a.id = ?");
+            $debugStmt->execute([$viewSingle]);
+            $debugApp = $debugStmt->fetch();
+            if ($debugApp) {
+                error_log("DEBUG: Application exists but doesn't match criteria. Status: " . $debugApp['status'] . ", Student dept: " . $debugApp['student_dept']);
+            } else {
+                error_log("DEBUG: Application does not exist in database");
+            }
+        }
         
         if (!$application) {
             $_SESSION['error_message'] = 'Application not found or not approved yet.';
@@ -56,11 +82,10 @@ try {
         
         // Build WHERE conditions - only show applications assigned to this lecturer
         $whereConditions = [
-            'u.department = ?',
             'a.lecturer_assigned_by IS NOT NULL',
             'EXISTS (SELECT 1 FROM lecturer_notifications ln WHERE ln.application_id = a.id AND ln.lecturer_id = ?)'
         ];
-        $params = [$user['department'], $user['id']];
+        $params = [$user['id']];
         
         // Handle status filter
         if (!empty($statusFilter)) {
@@ -140,6 +165,10 @@ try {
     $totalPages = 0;
     $courses = [];
 }
+
+// Now include the header after all potential redirects
+$pageTitle = 'View Approved Applications';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/header.php';
 ?>
 
 <?php if ($viewSingle && $application): ?>

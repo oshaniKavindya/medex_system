@@ -80,9 +80,7 @@ try {
             MONTH(a.lecturer_assigned_at) as month,
             COUNT(*) as count
         FROM applications a
-        JOIN users u ON a.student_id = u.id
-        WHERE u.department = ? 
-        AND a.lecturer_assigned_by IS NOT NULL 
+        WHERE a.lecturer_assigned_by IS NOT NULL 
         AND EXISTS (
             SELECT 1 FROM lecturer_notifications ln 
             WHERE ln.application_id = a.id 
@@ -93,7 +91,7 @@ try {
         GROUP BY YEAR(a.lecturer_assigned_at), MONTH(a.lecturer_assigned_at)
         ORDER BY year DESC, month DESC
     ");
-    $stmt->execute([$user['department'], $user['id']]);
+    $stmt->execute([$user['id']]);
     $monthly_trends = $stmt->fetchAll();
     
 } catch (PDOException $e) {
