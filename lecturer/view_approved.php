@@ -19,11 +19,6 @@ try {
     $pdo = getConnection();
     
     if ($viewSingle) {
-        // Debug: Log the parameters
-        error_log("DEBUG: Looking for application ID: $viewSingle");
-        error_log("DEBUG: Lecturer ID: " . $user['id']);
-        error_log("DEBUG: Lecturer department: " . $user['department']);
-        
         // Get single application details - only if assigned to this lecturer
         $stmt = $pdo->prepare("
             SELECT a.*, c.course_name, c.course_code, c.department, c.year,
@@ -44,22 +39,6 @@ try {
         $stmt->execute([$viewSingle, $user['id']]);
         $application = $stmt->fetch();
         
-        // Debug: Log what we found
-        if ($application) {
-            error_log("DEBUG: Found application. Student dept: " . $application['student_dept'] . ", Course dept: " . $application['department']);
-        } else {
-            error_log("DEBUG: Application not found with current query");
-            // Try simpler query to see if application exists at all
-            $debugStmt = $pdo->prepare("SELECT a.*, u.department as student_dept FROM applications a JOIN users u ON a.student_id = u.id WHERE a.id = ?");
-            $debugStmt->execute([$viewSingle]);
-            $debugApp = $debugStmt->fetch();
-            if ($debugApp) {
-                error_log("DEBUG: Application exists but doesn't match criteria. Status: " . $debugApp['status'] . ", Student dept: " . $debugApp['student_dept']);
-            } else {
-                error_log("DEBUG: Application does not exist in database");
-            }
-        }
-        
         if (!$application) {
             $_SESSION['error_message'] = 'Application not found or not approved yet.';
             header('Location: view_approved.php');
@@ -75,10 +54,6 @@ try {
         $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
         $perPage = 20;
         $offset = ($page - 1) * $perPage;
-        
-        // Debug logging
-        error_log("Lecturer View Approved - GET params: " . print_r($_GET, true));
-        error_log("Lecturer View Approved - Filters: status=$statusFilter, type=$typeFilter, course=$courseFilter");
         
         // Build WHERE conditions - only show applications assigned to this lecturer
         $whereConditions = [
@@ -107,10 +82,6 @@ try {
         }
         
         $whereClause = implode(' AND ', $whereConditions);
-        
-        // Debug logging
-        error_log("Lecturer View Approved - WHERE clause: " . $whereClause);
-        error_log("Lecturer View Approved - Params: " . print_r($params, true));
         
         // Get total count
         $countStmt = $pdo->prepare("

@@ -76,14 +76,16 @@ try {
             JOIN users u ON a.student_id = u.id
             WHERE $whereClause
             ORDER BY a.$sortBy $sortOrder 
-            LIMIT ? OFFSET ?
+            LIMIT $perPage OFFSET $offset
         ");
-        $stmt->execute(array_merge($params, [$perPage, $offset]));
+        $stmt->execute($params);
         $applications = $stmt->fetchAll();
     }
     
 } catch (PDOException $e) {
     error_log("Database error in manage applications: " . $e->getMessage());
+
+    error_log("Where clause: " . $whereClause);
     if ($viewSingle) {
         $_SESSION['error_message'] = 'Error loading application details.';
         header('Location: manage_applications.php');
@@ -280,7 +282,7 @@ try {
                         </h5>
                     </div>
                     <div class="card-body">
-                        <div class="alert alert-info">
+                        <div class="alert alert-info alert-permanent">
                             <h6>Already Reviewed</h6>
                             <p class="mb-0">This application has been reviewed and is currently: 
                                <strong><?php echo formatStatus($application['status']); ?></strong>
@@ -288,7 +290,7 @@ try {
                         </div>
                         
                         <?php if ($application['admin_comments']): ?>
-                            <div class="alert alert-secondary mt-3">
+                            <div class="alert alert-secondary alert-permanent mt-3">
                                 <h6>Previous Comments:</h6>
                                 <p class="mb-0"><?php echo nl2br(htmlspecialchars($application['admin_comments'])); ?></p>
                             </div>
@@ -558,7 +560,7 @@ try {
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="quickActionForm">
+                <form id="quickActionForm" action="process_applications.php" method="POST">
                     <input type="hidden" id="quickApplicationId" name="application_id">
                     <input type="hidden" id="quickAction" name="action" value="review">
                     <input type="hidden" id="quickDecision" name="decision">
@@ -572,7 +574,7 @@ try {
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="submitQuickAction()">Confirm</button>
+                <button type="submit" form="quickActionForm" class="btn btn-primary">Confirm</button>
             </div>
         </div>
     </div>
@@ -598,38 +600,6 @@ function quickReject(applicationId) {
     
     const modal = new bootstrap.Modal(document.getElementById('quickActionModal'));
     modal.show();
-}
-
-function submitQuickAction() {
-    const form = document.getElementById('quickActionForm');
-    const formData = new FormData(form);
-    
-    showLoading(true);
-    
-    fetch('process_applications.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        showLoading(false);
-        if (data.success) {
-            showAlert(data.message, 'success');
-            setTimeout(() => {
-                location.reload();
-            }, 1500);
-        } else {
-            showAlert(data.message, 'danger');
-        }
-        
-        const modal = bootstrap.Modal.getInstance(document.getElementById('quickActionModal'));
-        modal.hide();
-    })
-    .catch(error => {
-        showLoading(false);
-        console.error('Error:', error);
-        showAlert('An error occurred. Please try again.', 'danger');
-    });
 }
 
 // Auto-submit filters

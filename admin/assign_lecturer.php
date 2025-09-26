@@ -354,7 +354,6 @@ function updateSelectionInfo() {
     const selectedCount = select.selectedOptions.length;
     
     // You can add visual feedback here if needed
-    console.log(`${selectedCount} lecturer(s) selected`);
 }
 
 // Form validation and submission

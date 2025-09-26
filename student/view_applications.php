@@ -198,7 +198,7 @@ try {
                                         <?php endif; ?>
                                     </p>
                                     <?php if ($application['admin_comments']): ?>
-                                        <div class="alert alert-info mt-2">
+                                        <div class="alert alert-info alert-permanent mt-2">
                                             <strong>Admin Comments:</strong><br>
                                             <?php echo nl2br(htmlspecialchars($application['admin_comments'])); ?>
                                         </div>
@@ -226,7 +226,7 @@ try {
                                         by <?php echo $application['hod_name'] ?: 'HOD'; ?>.
                                     </p>
                                     <?php if ($application['hod_comments']): ?>
-                                        <div class="alert alert-<?php echo $application['status'] === 'hod_approved' ? 'success' : 'warning'; ?> mt-2">
+                                        <div class="alert alert-<?php echo $application['status'] === 'hod_approved' ? 'success' : 'warning'; ?> alert-permanent mt-2">
                                             <strong>HOD Comments:</strong><br>
                                             <?php echo nl2br(htmlspecialchars($application['hod_comments'])); ?>
                                         </div>

@@ -34,7 +34,7 @@ try {
         JOIN users u ON a.student_id = u.id
         LEFT JOIN users admin ON a.admin_reviewed_by = admin.id
         WHERE a.status = 'admin_reviewed' AND u.department = ?
-        ORDER BY a.reviewed_at ASC 
+        ORDER BY a.submitted_at ASC 
         LIMIT 8
     ");
     $stmt->execute([$user['department']]);

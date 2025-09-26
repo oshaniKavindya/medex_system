@@ -26,6 +26,7 @@ try {
         $department = sanitize($_POST['department'] ?? '');
         $year = (int)($_POST['year'] ?? 0);
         $description = sanitize($_POST['description'] ?? '');
+        $submission_end_date = sanitize($_POST['submission_end_date'] ?? '');
         $confirm = isset($_POST['confirm']);
         
         // Validation
@@ -36,6 +37,16 @@ try {
         if (empty($department)) $errors[] = 'Department is required.';
         if (empty($year) || $year < 1 || $year > 4) $errors[] = 'Valid academic year is required.';
         if (!$confirm) $errors[] = 'You must confirm the course information is accurate.';
+        
+        // Validate submission end date if provided
+        if (!empty($submission_end_date)) {
+            $date = DateTime::createFromFormat('Y-m-d', $submission_end_date);
+            if (!$date || $date->format('Y-m-d') !== $submission_end_date) {
+                $errors[] = 'Invalid submission end date format.';
+            } elseif ($date < new DateTime()) {
+                $errors[] = 'Submission end date cannot be in the past.';
+            }
+        }
         
         // Validate course code format
         if (!empty($course_code) && !preg_match('/^[A-Z]{2,4}[0-9]{3}$/', $course_code)) {
@@ -64,11 +75,13 @@ try {
         
         // Insert new course
         $stmt = $pdo->prepare("
-            INSERT INTO courses (course_code, course_name, department, year, description, created_by) 
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO courses (course_code, course_name, department, year, description, submission_end_date, created_by) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ");
         
-        if ($stmt->execute([$course_code, $course_name, $department, $year, $description, $user['id']])) {
+        $submission_end_date_value = !empty($submission_end_date) ? $submission_end_date : null;
+        
+        if ($stmt->execute([$course_code, $course_name, $department, $year, $description, $submission_end_date_value, $user['id']])) {
             $course_id = $pdo->lastInsertId();
             
             // Log the action
@@ -91,6 +104,7 @@ try {
         $department = sanitize($_POST['department'] ?? '');
         $year = (int)($_POST['year'] ?? 0);
         $description = sanitize($_POST['description'] ?? '');
+        $submission_end_date = sanitize($_POST['submission_end_date'] ?? '');
         
         // Validation
         if (empty($course_id)) {
@@ -101,6 +115,18 @@ try {
         if (empty($course_code) || empty($course_name) || empty($department) || empty($year)) {
             echo json_encode(['success' => false, 'message' => 'All required fields must be filled']);
             exit();
+        }
+        
+        // Validate submission end date if provided
+        if (!empty($submission_end_date)) {
+            $date = DateTime::createFromFormat('Y-m-d', $submission_end_date);
+            if (!$date || $date->format('Y-m-d') !== $submission_end_date) {
+                echo json_encode(['success' => false, 'message' => 'Invalid submission end date format']);
+                exit();
+            } elseif ($date < new DateTime()) {
+                echo json_encode(['success' => false, 'message' => 'Submission end date cannot be in the past']);
+                exit();
+            }
         }
         
         // Validate course code format
@@ -130,11 +156,13 @@ try {
         // Update course
         $stmt = $pdo->prepare("
             UPDATE courses 
-            SET course_code = ?, course_name = ?, department = ?, year = ?, description = ?
+            SET course_code = ?, course_name = ?, department = ?, year = ?, description = ?, submission_end_date = ?
             WHERE id = ?
         ");
         
-        if ($stmt->execute([$course_code, $course_name, $department, $year, $description, $course_id])) {
+        $submission_end_date_value = !empty($submission_end_date) ? $submission_end_date : null;
+        
+        if ($stmt->execute([$course_code, $course_name, $department, $year, $description, $submission_end_date_value, $course_id])) {
             // Log the action
             logAction($user['id'], 'Course Updated', "Course ID: $course_id, Code: $course_code");
             

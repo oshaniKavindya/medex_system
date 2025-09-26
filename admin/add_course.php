@@ -99,6 +99,27 @@ $user = getCurrentUser();
                         </div>
                     </div>
                     
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="submission_end_date" class="form-label">
+                                    <i class="fas fa-clock me-1"></i>Submission End Date
+                                </label>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="submission_end_date" 
+                                       name="submission_end_date"
+                                       min="<?php echo date('Y-m-d'); ?>">
+                                <div class="form-text text-muted">
+                                    Optional. Set a deadline for medical excuse submissions for this course.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <!-- Empty column for spacing -->
+                        </div>
+                    </div>
+                    
                     <div class="form-group mb-4">
                         <label for="description" class="form-label">
                             <i class="fas fa-file-alt me-1"></i>Course Description
@@ -128,7 +149,7 @@ $user = getCurrentUser();
                                     <strong>Code:</strong><br>
                                     <span id="previewCode" class="text-primary"></span>
                                 </div>
-                                <div class="col-md-5">
+                                <div class="col-md-4">
                                     <strong>Name:</strong><br>
                                     <span id="previewName"></span>
                                 </div>
@@ -136,9 +157,15 @@ $user = getCurrentUser();
                                     <strong>Year:</strong><br>
                                     <span id="previewYear" class="badge badge-secondary"></span>
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-3">
                                     <strong>Department:</strong><br>
                                     <span id="previewDept" class="badge badge-primary"></span>
+                                </div>
+                            </div>
+                            <div class="row mt-2" id="previewSubmissionDate" style="display: none;">
+                                <div class="col-md-12">
+                                    <strong>Submission End Date:</strong><br>
+                                    <span id="previewEndDate" class="text-warning"></span>
                                 </div>
                             </div>
                             <div class="mt-3" id="previewDescContainer" style="display: none;">
@@ -256,6 +283,7 @@ function updatePreview() {
     const dept = document.getElementById('department').value;
     const year = document.getElementById('year').value;
     const desc = document.getElementById('description').value;
+    const endDate = document.getElementById('submission_end_date').value;
     
     if (code || name || dept || year) {
         document.getElementById('coursePreview').style.display = 'block';
@@ -278,6 +306,18 @@ function updatePreview() {
             document.getElementById('previewDept').className = 'badge badge-secondary';
         }
         
+        if (endDate) {
+            document.getElementById('previewSubmissionDate').style.display = 'block';
+            const formattedDate = new Date(endDate).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            document.getElementById('previewEndDate').textContent = formattedDate;
+        } else {
+            document.getElementById('previewSubmissionDate').style.display = 'none';
+        }
+        
         if (desc.trim()) {
             document.getElementById('previewDescContainer').style.display = 'block';
             document.getElementById('previewDesc').textContent = desc;
@@ -290,7 +330,7 @@ function updatePreview() {
 }
 
 // Add event listeners for preview updates
-['course_name', 'department', 'year', 'description'].forEach(id => {
+['course_name', 'department', 'year', 'description', 'submission_end_date'].forEach(id => {
     document.getElementById(id).addEventListener('input', updatePreview);
 });
 

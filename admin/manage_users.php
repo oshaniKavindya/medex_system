@@ -9,11 +9,7 @@ $user = getCurrentUser();
 try {
     $pdo = getConnection();
     
-    // Simple test: Check if there are any users at all
-    $testStmt = $pdo->prepare("SELECT COUNT(*) FROM users");
-    $testStmt->execute();
-    $totalUsersInDb = $testStmt->fetchColumn();
-    error_log("DEBUG: Total users in database: " . $totalUsersInDb);
+
     
     // Handle filters
     $roleFilter = isset($_GET['role']) ? sanitize($_GET['role']) : '';
@@ -44,9 +40,7 @@ try {
     
     $whereClause = implode(' AND ', $whereConditions);
     
-    // Debug: Log the query being executed
-    error_log("DEBUG: WHERE clause: " . $whereClause);
-    error_log("DEBUG: Params: " . print_r($params, true));
+
     
     // Get total count
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE $whereClause");
@@ -54,8 +48,7 @@ try {
     $totalUsers = $countStmt->fetchColumn();
     $totalPages = ceil($totalUsers / $perPage);
     
-    // Debug: Log what we found
-    error_log("DEBUG: Total users found: " . $totalUsers);
+
     
     // Get users
     $stmt = $pdo->prepare("
@@ -67,8 +60,7 @@ try {
     $stmt->execute($params);
     $users = $stmt->fetchAll();
     
-    // Debug: Log number of users retrieved
-    error_log("DEBUG: Users retrieved: " . count($users));
+
     
     // Get user statistics
     $stmt = $pdo->prepare("
@@ -85,7 +77,6 @@ try {
     
 } catch (PDOException $e) {
     error_log("Database error in manage users: " . $e->getMessage());
-    error_log("DEBUG: Exception details: " . $e->getTraceAsString());
     $users = [];
     $totalUsers = 0;
     $totalPages = 0;
@@ -209,7 +200,7 @@ try {
                             <th>Year</th>
                             <th>Status</th>
                             <th>Joined</th>
-                            <th>Actions</th>
+                           
                         </tr>
                     </thead>
                     <tbody>
@@ -244,17 +235,7 @@ try {
                                 <td>
                                     <small><?php echo date('M j, Y', strtotime($u['created_at'])); ?></small>
                                 </td>
-                                <td>
-                                    <div class="btn-group" role="group">
-                                        <?php if ($u['id'] !== $user['id']): // Don't allow admin to deactivate themselves ?>
-                                        <button type="button" class="btn btn-outline-<?php echo $u['status'] === 'active' ? 'warning' : 'success'; ?> btn-sm" 
-                                                onclick="toggleUserStatus(<?php echo $u['id']; ?>, '<?php echo $u['status']; ?>')" 
-                                                title="<?php echo $u['status'] === 'active' ? 'Deactivate' : 'Activate'; ?>">
-                                            <i class="fas fa-<?php echo $u['status'] === 'active' ? 'user-slash' : 'user-check'; ?>"></i>
-                                        </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
+                               
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -284,41 +265,6 @@ document.getElementById('searchInput').addEventListener('keyup', function() {
         row.style.display = text.includes(searchTerm) ? '' : 'none';
     });
 });
-
-// Toggle user status
-function toggleUserStatus(userId, currentStatus) {
-    const action = currentStatus === 'active' ? 'deactivate' : 'activate';
-    const confirmMessage = `Are you sure you want to ${action} this user?`;
-    
-    if (confirm(confirmMessage)) {
-        showLoading(true);
-        
-        const formData = new FormData();
-        formData.append('action', 'toggle_status');
-        formData.append('user_id', userId);
-        formData.append('status', currentStatus === 'active' ? 'inactive' : 'active');
-        
-        fetch('process_user_management.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            showLoading(false);
-            if (data.success) {
-                showAlert(data.message, 'success');
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showAlert(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showLoading(false);
-            console.error('Error:', error);
-            showAlert('An error occurred. Please try again.', 'danger');
-        });
-    }
-}
 
 // Auto-submit filters
 document.addEventListener('DOMContentLoaded', function() {

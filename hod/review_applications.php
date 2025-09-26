@@ -36,7 +36,7 @@ try {
     } else {
         // Get applications for this HOD's department
         $statusFilter = isset($_GET['status']) ? sanitize($_GET['status']) : 'admin_reviewed';
-        $sortBy = isset($_GET['sort']) ? sanitize($_GET['sort']) : 'reviewed_at';
+        $sortBy = isset($_GET['sort']) ? sanitize($_GET['sort']) : 'submitted_at';
         $sortOrder = isset($_GET['order']) && $_GET['order'] === 'desc' ? 'DESC' : 'ASC';
         $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
         $perPage = 15;
@@ -57,6 +57,7 @@ try {
         $countStmt = $pdo->prepare("
             SELECT COUNT(*) 
             FROM applications a 
+            LEFT JOIN courses c ON a.course_id = c.id
             JOIN users u ON a.student_id = u.id 
             WHERE $whereClause
         ");
@@ -70,14 +71,14 @@ try {
                    u.full_name as student_name, u.year as student_year,
                    admin.full_name as admin_name
             FROM applications a 
-            JOIN courses c ON a.course_id = c.id 
+            LEFT JOIN courses c ON a.course_id = c.id 
             JOIN users u ON a.student_id = u.id
             LEFT JOIN users admin ON a.admin_reviewed_by = admin.id
             WHERE $whereClause
             ORDER BY a.$sortBy $sortOrder 
-            LIMIT ? OFFSET ?
+            LIMIT $perPage OFFSET $offset
         ");
-        $stmt->execute(array_merge($params, [$perPage, $offset]));
+        $stmt->execute($params);
         $applications = $stmt->fetchAll();
     }
     

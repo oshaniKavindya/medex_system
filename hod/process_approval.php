@@ -1,13 +1,14 @@
 <?php
+// Start output buffering for better performance
+ob_start();
+
 require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/functions.php';
 
 requireRole('hod');
 
-// Return JSON for AJAX requests
-header('Content-Type: application/json');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    ob_end_clean();
     header('Location: review_applications.php');
     exit();
 }
@@ -75,22 +76,28 @@ try {
             $stmt->execute([$comments, $user['id'], $application_id]);
             
             // Log the action
-            logAction($user['id'], 'Application Approved by HOD', "Application ID: $application_id");
+            $stmt = $pdo->prepare("INSERT INTO system_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$user['id'], 'Application Approved by HOD', "Application ID: $application_id", $_SERVER['REMOTE_ADDR']]);
             
             // Notify student
-            addNotification($application['student_id'], 
+            $stmt = $pdo->prepare("INSERT INTO notifications (user_id, application_id, message, type) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$application['student_id'], $application_id,
                 'Your medical excuse application has been approved by the HOD. The admin will now assign it to the relevant lecturer.', 
-                'success', $application_id);
+                'success']);
             
             // Notify all admins to assign lecturer
             $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
             $stmt->execute();
             $admins = $stmt->fetchAll();
             
-            foreach ($admins as $admin) {
-                addNotification($admin['id'], 
-                    "Application ID: $application_id has been approved by HOD. Please assign it to the relevant lecturer.", 
-                    'info', $application_id);
+            // Batch insert notifications for admins
+            if (!empty($admins)) {
+                $notifyStmt = $pdo->prepare("INSERT INTO notifications (user_id, application_id, message, type) VALUES (?, ?, ?, ?)");
+                foreach ($admins as $admin) {
+                    $notifyStmt->execute([$admin['id'], $application_id,
+                        "Application ID: $application_id has been approved by HOD. Please assign it to the relevant lecturer.", 
+                        'info']);
+                }
             }
             
             $message = 'Application approved successfully. Admin will now assign it to the relevant lecturer.';
@@ -108,22 +115,28 @@ try {
             $stmt->execute([$comments, $user['id'], $application_id]);
             
             // Log the action
-            logAction($user['id'], 'Application Rejected by HOD', "Application ID: $application_id, Reason: $comments");
+            $stmt = $pdo->prepare("INSERT INTO system_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$user['id'], 'Application Rejected by HOD', "Application ID: $application_id, Reason: $comments", $_SERVER['REMOTE_ADDR']]);
             
             // Notify student
-            addNotification($application['student_id'], 
+            $stmt = $pdo->prepare("INSERT INTO notifications (user_id, application_id, message, type) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$application['student_id'], $application_id,
                 'Your medical excuse application has been rejected by the HOD. Please check the comments for more information.', 
-                'warning', $application_id);
+                'warning']);
             
             // Notify admins
             $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
             $stmt->execute();
             $admins = $stmt->fetchAll();
             
-            foreach ($admins as $admin) {
-                addNotification($admin['id'], 
-                    "Application ID: $application_id has been rejected by HOD.", 
-                    'warning', $application_id);
+            // Batch insert notifications for admins
+            if (!empty($admins)) {
+                $notifyStmt = $pdo->prepare("INSERT INTO notifications (user_id, application_id, message, type) VALUES (?, ?, ?, ?)");
+                foreach ($admins as $admin) {
+                    $notifyStmt->execute([$admin['id'], $application_id,
+                        "Application ID: $application_id has been rejected by HOD.", 
+                        'warning']);
+                }
             }
             
             $message = 'Application rejected successfully.';
@@ -131,6 +144,9 @@ try {
         
         $pdo->commit();
         $_SESSION['success_message'] = $message;
+        
+        // Clean output buffer and redirect
+        ob_end_clean();
         header('Location: review_applications.php');
         exit();
         
@@ -142,11 +158,13 @@ try {
 } catch (PDOException $e) {
     error_log("Database error in HOD process approval: " . $e->getMessage());
     $_SESSION['error_message'] = 'A database error occurred. Please try again.';
+    ob_end_clean();
     header('Location: review_applications.php');
     exit();
 } catch (Exception $e) {
     error_log("General error in HOD process approval: " . $e->getMessage());
     $_SESSION['error_message'] = 'An error occurred while processing the application.';
+    ob_end_clean();
     header('Location: review_applications.php');
     exit();
 }

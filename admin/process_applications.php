@@ -1,14 +1,16 @@
 <?php
+// Start output buffering for better performance
+ob_start();
+
 require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/functions.php';
 
 requireRole('admin');
 
-// Return JSON for AJAX requests
-header('Content-Type: application/json');
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Invalid request method']);
+    $_SESSION['error_message'] = 'Invalid request method.';
+    ob_end_clean();
+    header('Location: manage_applications.php');
     exit();
 }
 
@@ -21,7 +23,8 @@ try {
     $action = sanitize($_POST['action'] ?? '');
     
     if (empty($application_id) || $action !== 'review') {
-        echo json_encode(['success' => false, 'message' => 'Invalid parameters']);
+        $_SESSION['error_message'] = 'Invalid parameters.';
+        header('Location: manage_applications.php');
         exit();
     }
     
@@ -36,12 +39,14 @@ try {
     $application = $stmt->fetch();
     
     if (!$application) {
-        echo json_encode(['success' => false, 'message' => 'Application not found']);
+        $_SESSION['error_message'] = 'Application not found.';
+        header('Location: manage_applications.php');
         exit();
     }
     
     if ($application['status'] !== 'pending') {
-        echo json_encode(['success' => false, 'message' => 'Application has already been reviewed']);
+        $_SESSION['error_message'] = 'Application has already been reviewed.';
+        header('Location: manage_applications.php?id=' . $application_id);
         exit();
     }
     
@@ -49,7 +54,8 @@ try {
     $comments = sanitize($_POST['comments'] ?? '');
     
     if (!in_array($decision, ['approve', 'reject'])) {
-        echo json_encode(['success' => false, 'message' => 'Invalid decision']);
+        $_SESSION['error_message'] = 'Invalid decision.';
+        header('Location: manage_applications.php?id=' . $application_id);
         exit();
     }
     
@@ -69,12 +75,14 @@ try {
             $stmt->execute([$comments, $user['id'], $application_id]);
             
             // Log the action
-            logAction($user['id'], 'Application Approved by Admin', "Application ID: $application_id");
+            $stmt = $pdo->prepare("INSERT INTO system_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$user['id'], 'Application Approved by Admin', "Application ID: $application_id", $_SERVER['REMOTE_ADDR']]);
             
             // Notify student
-            addNotification($application['student_id'], 
+            $stmt = $pdo->prepare("INSERT INTO notifications (user_id, application_id, message, type) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$application['student_id'], $application_id, 
                 'Your medical excuse application has been reviewed and forwarded to HOD for approval.', 
-                'info', $application_id);
+                'info']);
             
             // Notify HODs of the same department
             $stmt = $pdo->prepare("
@@ -84,10 +92,14 @@ try {
             $stmt->execute([$application['student_dept']]);
             $hods = $stmt->fetchAll();
             
-            foreach ($hods as $hod) {
-                addNotification($hod['id'], 
-                    "New medical excuse application ready for review from {$application['student_name']} (ID: $application_id)", 
-                    'info', $application_id);
+            // Batch insert notifications for HODs
+            if (!empty($hods)) {
+                $notifyStmt = $pdo->prepare("INSERT INTO notifications (user_id, application_id, message, type) VALUES (?, ?, ?, ?)");
+                foreach ($hods as $hod) {
+                    $notifyStmt->execute([$hod['id'], $application_id,
+                        "New medical excuse application ready for review from {$application['student_name']} (ID: $application_id)", 
+                        'info']);
+                }
             }
             
             $message = 'Application approved and forwarded to HOD successfully.';
@@ -105,18 +117,25 @@ try {
             $stmt->execute([$comments, $user['id'], $application_id]);
             
             // Log the action
-            logAction($user['id'], 'Application Rejected by Admin', "Application ID: $application_id, Reason: $comments");
+            $stmt = $pdo->prepare("INSERT INTO system_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$user['id'], 'Application Rejected by Admin', "Application ID: $application_id, Reason: $comments", $_SERVER['REMOTE_ADDR']]);
             
             // Notify student
-            addNotification($application['student_id'], 
+            $stmt = $pdo->prepare("INSERT INTO notifications (user_id, application_id, message, type) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$application['student_id'], $application_id,
                 'Your medical excuse application has been rejected by the medical officer. Please check the comments and resubmit if necessary.', 
-                'warning', $application_id);
+                'warning']);
             
             $message = 'Application rejected successfully.';
         }
         
         $pdo->commit();
-        echo json_encode(['success' => true, 'message' => $message]);
+        $_SESSION['success_message'] = $message;
+        
+        // Clean output buffer and redirect
+        ob_end_clean();
+        header('Location: manage_applications.php');
+        exit();
         
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -125,9 +144,15 @@ try {
     
 } catch (PDOException $e) {
     error_log("Database error in process applications: " . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => 'Database error occurred']);
+    $_SESSION['error_message'] = 'A database error occurred. Please try again.';
+    ob_end_clean();
+    header('Location: manage_applications.php');
+    exit();
 } catch (Exception $e) {
     error_log("General error in process applications: " . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => 'An error occurred while processing the application']);
+    $_SESSION['error_message'] = 'An error occurred while processing the application.';
+    ob_end_clean();
+    header('Location: manage_applications.php');
+    exit();
 }
 ?>

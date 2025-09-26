@@ -49,7 +49,12 @@ function uploadFile($file, $uploadDir, $allowedTypes = ['pdf', 'jpg', 'jpeg', 'p
 function getCoursesByDepartmentYear($department, $year) {
     try {
         $pdo = getConnection();
-        $stmt = $pdo->prepare("SELECT * FROM courses WHERE department = ? AND year = ? ORDER BY course_name");
+        $stmt = $pdo->prepare("
+            SELECT * FROM courses 
+            WHERE department = ? AND year = ? 
+            AND (submission_end_date IS NULL OR submission_end_date >= CURDATE())
+            ORDER BY course_name
+        ");
         $stmt->execute([$department, $year]);
         return $stmt->fetchAll();
     } catch(PDOException $e) {

@@ -21,19 +21,19 @@ try {
     $params = [];
     
     if (!empty($departmentFilter)) {
-        $whereConditions[] = "department = ?";
+        $whereConditions[] = "c.department = ?";
         $params[] = $departmentFilter;
     }
     
-    if (!empty($yearFilter)) {
-        $whereConditions[] = "year = ?";
+    if ($yearFilter > 0) {
+        $whereConditions[] = "c.year = ?";
         $params[] = $yearFilter;
     }
     
     $whereClause = implode(' AND ', $whereConditions);
     
     // Get total count
-    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM courses WHERE $whereClause");
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM courses c WHERE $whereClause");
     $countStmt->execute($params);
     $totalCourses = $countStmt->fetchColumn();
     $totalPages = ceil($totalCourses / $perPage);
@@ -45,9 +45,9 @@ try {
         LEFT JOIN users u ON c.created_by = u.id
         WHERE $whereClause
         ORDER BY c.department, c.year, c.course_code
-        LIMIT ? OFFSET ?
+        LIMIT $perPage OFFSET $offset
     ");
-    $stmt->execute(array_merge($params, [$perPage, $offset]));
+    $stmt->execute($params);
     $courses = $stmt->fetchAll();
     
     // Get course statistics
@@ -64,6 +64,8 @@ try {
     
 } catch (PDOException $e) {
     error_log("Database error in manage courses: " . $e->getMessage());
+
+    error_log("Where clause: " . $whereClause);
     $courses = [];
     $totalCourses = 0;
     $totalPages = 0;
@@ -214,6 +216,7 @@ try {
                             <th>Course Name</th>
                             <th>Department</th>
                             <th>Year</th>
+                            <th>Submission End</th>
                             <th>Created By</th>
                             <th>Created</th>
                             <th>Actions</th>
@@ -238,6 +241,16 @@ try {
                                 </td>
                                 <td>
                                     <span class="badge badge-secondary">Year <?php echo $course['year']; ?></span>
+                                </td>
+                                <td>
+                                    <?php if ($course['submission_end_date']): ?>
+                                        <small class="text-<?php echo (strtotime($course['submission_end_date']) < time()) ? 'danger' : 'success'; ?>">
+                                            <i class="fas fa-clock me-1"></i>
+                                            <?php echo date('M j, Y', strtotime($course['submission_end_date'])); ?>
+                                        </small>
+                                    <?php else: ?>
+                                        <small class="text-muted">No deadline</small>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <small class="text-muted">
@@ -335,6 +348,25 @@ try {
                         </div>
                     </div>
                     
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="editSubmissionEndDate" class="form-label">Submission End Date</label>
+                                <input type="date" 
+                                       class="form-control" 
+                                       id="editSubmissionEndDate" 
+                                       name="submission_end_date"
+                                       min="<?php echo date('Y-m-d'); ?>">
+                                <small class="form-text text-muted">
+                                    Optional. Set a deadline for medical excuse submissions for this course.
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <!-- Empty column for spacing -->
+                        </div>
+                    </div>
+                    
                     <div class="form-group mb-3">
                         <label for="editDescription" class="form-label">Description</label>
                         <textarea class="form-control" id="editDescription" name="description" rows="3"
@@ -408,6 +440,7 @@ function editCourse(courseId) {
                 document.getElementById('editDepartment').value = course.department;
                 document.getElementById('editYear').value = course.year;
                 document.getElementById('editDescription').value = course.description || '';
+                document.getElementById('editSubmissionEndDate').value = course.submission_end_date || '';
                 
                 const modal = new bootstrap.Modal(document.getElementById('editCourseModal'));
                 modal.show();
@@ -463,6 +496,11 @@ function viewCourse(courseId) {
                 const detailsHtml = `
                     <div class="row">
                         <div class="col-sm-4"><strong>Course Code:</strong></div>
+                        <div class="col-sm-8">${course.course_code}</div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Course Name:</strong></div>
                         <div class="col-sm-8">${course.course_name}</div>
                     </div>
                     <hr>
@@ -474,6 +512,11 @@ function viewCourse(courseId) {
                     <div class="row">
                         <div class="col-sm-4"><strong>Academic Year:</strong></div>
                         <div class="col-sm-8">Year ${course.year}</div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Submission End Date:</strong></div>
+                        <div class="col-sm-8">${course.submission_end_date ? new Date(course.submission_end_date).toLocaleDateString() : 'No deadline set'}</div>
                     </div>
                     <hr>
                     <div class="row">
