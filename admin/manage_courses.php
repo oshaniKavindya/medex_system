@@ -9,36 +9,35 @@ $user = getCurrentUser();
 try {
     $pdo = getConnection();
     
-    // Handle filters
-    $departmentFilter = isset($_GET['department']) ? sanitize($_GET['department']) : '';
-    $yearFilter = isset($_GET['year']) ? (int)$_GET['year'] : 0;
-    $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
-    $perPage = 20;
-    $offset = ($page - 1) * $perPage;
+    // Extract filters
+    $filters = [
+        'department' => sanitize($_GET['department'] ?? ''),
+        'year' => max(0, (int)($_GET['year'] ?? 0)),
+        'page' => max(1, (int)($_GET['page'] ?? 1))
+    ];
     
-    // Build WHERE conditions
+    $perPage = 20;
+    $offset = ($filters['page'] - 1) * $perPage;
+    
+    // Build dynamic WHERE clause
     $whereConditions = ['1=1'];
     $params = [];
     
-    if (!empty($departmentFilter)) {
-        $whereConditions[] = "c.department = ?";
-        $params[] = $departmentFilter;
-    }
-    
-    if ($yearFilter > 0) {
-        $whereConditions[] = "c.year = ?";
-        $params[] = $yearFilter;
+    foreach (['department', 'year'] as $field) {
+        if (!empty($filters[$field])) {
+            $whereConditions[] = "c.$field = ?";
+            $params[] = $filters[$field];
+        }
     }
     
     $whereClause = implode(' AND ', $whereConditions);
     
-    // Get total count
+    // Execute queries
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM courses c WHERE $whereClause");
     $countStmt->execute($params);
     $totalCourses = $countStmt->fetchColumn();
     $totalPages = ceil($totalCourses / $perPage);
     
-    // Get courses
     $stmt = $pdo->prepare("
         SELECT c.*, u.full_name as created_by_name
         FROM courses c 
@@ -52,25 +51,63 @@ try {
     
     // Get course statistics
     $stmt = $pdo->prepare("
-        SELECT 
-            department,
-            COUNT(*) as course_count,
-            COUNT(DISTINCT year) as year_count
-        FROM courses 
-        GROUP BY department
+        SELECT department, COUNT(*) as course_count, COUNT(DISTINCT year) as year_count
+        FROM courses GROUP BY department
     ");
     $stmt->execute();
     $courseStats = $stmt->fetchAll();
     
 } catch (PDOException $e) {
     error_log("Database error in manage courses: " . $e->getMessage());
-
-    error_log("Where clause: " . $whereClause);
     $courses = [];
     $totalCourses = 0;
     $totalPages = 0;
     $courseStats = [];
 }
+
+// Helper functions
+function renderSelect($name, $options, $selected = '', $placeholder = '') {
+    $html = "<select name='$name' id='$name' class='form-select'>";
+    if ($placeholder) $html .= "<option value=''>$placeholder</option>";
+    
+    foreach ($options as $value => $label) {
+        $sel = (string)$selected === (string)$value ? 'selected' : '';
+        $html .= "<option value='$value' $sel>$label</option>";
+    }
+    return $html . "</select>";
+}
+
+function renderStatCard($stat) {
+    return "
+        <div class='d-flex justify-content-between align-items-center mb-3'>
+            <div>
+                <strong>" . getDepartmentName($stat['department']) . "</strong><br>
+                <small class='text-muted'>{$stat['year_count']} years covered</small>
+            </div>
+            <div>
+                <span class='badge badge-primary'>{$stat['course_count']} courses</span>
+            </div>
+        </div>";
+}
+
+function formatDescription($desc, $limit = 50) {
+    if (!$desc) return '';
+    return '<br><small class="text-muted">' . htmlspecialchars(substr($desc, 0, $limit)) . (strlen($desc) > $limit ? '...' : '') . '</small>';
+}
+
+$departmentOptions = [
+    '' => 'All Departments',
+    'survey_geodesy' => 'Survey & Geodesy',
+    'remote_sensing_gis' => 'Remote Sensing & GIS'
+];
+
+$yearOptions = [
+    '' => 'All Years',
+    '1' => '1st Year',
+    '2' => '2nd Year', 
+    '3' => '3rd Year',
+    '4' => '4th Year'
+];
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -80,12 +117,10 @@ try {
     </div>
     <div>
         <a href="add_course.php" class="btn btn-primary">
-            <i class="fas fa-plus me-2"></i>
-            Add New Course
+            <i class="fas fa-plus me-2"></i>Add New Course
         </a>
         <a href="dashboard.php" class="btn btn-outline-secondary">
-            <i class="fas fa-tachometer-alt me-2"></i>
-            Dashboard
+            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
         </a>
     </div>
 </div>
@@ -96,25 +131,14 @@ try {
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-chart-pie me-2"></i>
-                    Course Statistics
+                    <i class="fas fa-chart-pie me-2"></i>Course Statistics
                 </h5>
             </div>
             <div class="card-body">
                 <?php if (empty($courseStats)): ?>
                     <p class="text-muted">No courses available yet.</p>
                 <?php else: ?>
-                    <?php foreach ($courseStats as $stat): ?>
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div>
-                                <strong><?php echo getDepartmentName($stat['department']); ?></strong><br>
-                                <small class="text-muted"><?php echo $stat['year_count']; ?> years covered</small>
-                            </div>
-                            <div>
-                                <span class="badge badge-primary"><?php echo $stat['course_count']; ?> courses</span>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
+                    <?php foreach ($courseStats as $stat) echo renderStatCard($stat); ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -124,8 +148,7 @@ try {
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-info-circle me-2"></i>
-                    Quick Stats
+                    <i class="fas fa-info-circle me-2"></i>Quick Stats
                 </h5>
             </div>
             <div class="card-body">
@@ -150,22 +173,12 @@ try {
         <form method="GET" class="row g-3 align-items-end">
             <div class="col-md-4">
                 <label for="department" class="form-label">Filter by Department</label>
-                <select name="department" id="department" class="form-select">
-                    <option value="">All Departments</option>
-                    <option value="survey_geodesy" <?php echo $departmentFilter === 'survey_geodesy' ? 'selected' : ''; ?>>Survey & Geodesy</option>
-                    <option value="remote_sensing_gis" <?php echo $departmentFilter === 'remote_sensing_gis' ? 'selected' : ''; ?>>Remote Sensing & GIS</option>
-                </select>
+                <?php echo renderSelect('department', $departmentOptions, $filters['department']); ?>
             </div>
             
             <div class="col-md-3">
                 <label for="year" class="form-label">Filter by Year</label>
-                <select name="year" id="year" class="form-select">
-                    <option value="">All Years</option>
-                    <option value="1" <?php echo $yearFilter === 1 ? 'selected' : ''; ?>>1st Year</option>
-                    <option value="2" <?php echo $yearFilter === 2 ? 'selected' : ''; ?>>2nd Year</option>
-                    <option value="3" <?php echo $yearFilter === 3 ? 'selected' : ''; ?>>3rd Year</option>
-                    <option value="4" <?php echo $yearFilter === 4 ? 'selected' : ''; ?>>4th Year</option>
-                </select>
+                <?php echo renderSelect('year', $yearOptions, $filters['year']); ?>
             </div>
             
             <div class="col-md-3">
@@ -193,8 +206,7 @@ try {
 <div class="card">
     <div class="card-header">
         <h5 class="card-title mb-0">
-            <i class="fas fa-book me-2"></i>
-            Courses (<?php echo $totalCourses; ?> total)
+            <i class="fas fa-book me-2"></i>Courses (<?php echo $totalCourses; ?> total)
         </h5>
     </div>
     <div class="card-body">
@@ -203,8 +215,7 @@ try {
                 <i class="fas fa-book fa-3x text-muted mb-3"></i>
                 <p class="text-muted">No courses found with the current filters.</p>
                 <a href="add_course.php" class="btn btn-primary">
-                    <i class="fas fa-plus me-2"></i>
-                    Add Your First Course
+                    <i class="fas fa-plus me-2"></i>Add Your First Course
                 </a>
             </div>
         <?php else: ?>
@@ -212,39 +223,28 @@ try {
                 <table class="table table-hover" id="coursesTable">
                     <thead>
                         <tr>
-                            <th>Course Code</th>
-                            <th>Course Name</th>
-                            <th>Department</th>
-                            <th>Year</th>
-                            <th>Submission End</th>
-                            <th>Created By</th>
-                            <th>Created</th>
-                            <th>Actions</th>
+                            <th>Course Code</th><th>Course Name</th><th>Department</th><th>Year</th>
+                            <th>Submission End</th><th>Created By</th><th>Created</th><th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($courses as $course): ?>
                             <tr>
+                                <td><strong><?php echo htmlspecialchars($course['course_code']); ?></strong></td>
                                 <td>
-                                    <strong><?php echo htmlspecialchars($course['course_code']); ?></strong>
-                                </td>
-                                <td>
-                                    <?php echo htmlspecialchars($course['course_name']); ?>
-                                    <?php if ($course['description']): ?>
-                                        <br><small class="text-muted"><?php echo htmlspecialchars(substr($course['description'], 0, 50)) . (strlen($course['description']) > 50 ? '...' : ''); ?></small>
-                                    <?php endif; ?>
+                                    <?php echo htmlspecialchars($course['course_name']) . formatDescription($course['description']); ?>
                                 </td>
                                 <td>
                                     <span class="badge badge-<?php echo $course['department'] === 'survey_geodesy' ? 'primary' : 'info'; ?>">
                                         <?php echo getDepartmentName($course['department']); ?>
                                     </span>
                                 </td>
+                                <td><span class="badge badge-secondary">Year <?php echo $course['year']; ?></span></td>
                                 <td>
-                                    <span class="badge badge-secondary">Year <?php echo $course['year']; ?></span>
-                                </td>
-                                <td>
-                                    <?php if ($course['submission_end_date']): ?>
-                                        <small class="text-<?php echo (strtotime($course['submission_end_date']) < time()) ? 'danger' : 'success'; ?>">
+                                    <?php if ($course['submission_end_date']): 
+                                        $isExpired = strtotime($course['submission_end_date']) < time();
+                                        $color = $isExpired ? 'danger' : 'success'; ?>
+                                        <small class="text-<?php echo $color; ?>">
                                             <i class="fas fa-clock me-1"></i>
                                             <?php echo date('M j, Y', strtotime($course['submission_end_date'])); ?>
                                         </small>
@@ -252,30 +252,13 @@ try {
                                         <small class="text-muted">No deadline</small>
                                     <?php endif; ?>
                                 </td>
-                                <td>
-                                    <small class="text-muted">
-                                        <?php echo htmlspecialchars($course['created_by_name'] ?: 'Unknown'); ?>
-                                    </small>
-                                </td>
-                                <td>
-                                    <small class="text-muted">
-                                        <?php echo date('M j, Y', strtotime($course['created_at'])); ?>
-                                    </small>
-                                </td>
+                                <td><small class="text-muted"><?php echo htmlspecialchars($course['created_by_name'] ?: 'Unknown'); ?></small></td>
+                                <td><small class="text-muted"><?php echo date('M j, Y', strtotime($course['created_at'])); ?></small></td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                onclick="editCourse(<?php echo $course['id']; ?>)" title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-outline-info btn-sm" 
-                                                onclick="viewCourse(<?php echo $course['id']; ?>)" title="View Details">
+                                       
+                                        <button type="button" class="btn btn-outline-info btn-sm" onclick="viewCourse(<?php echo $course['id']; ?>)" title="View Details">
                                             <i class="fas fa-eye"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" 
-                                                onclick="deleteCourse(<?php echo $course['id']; ?>, '<?php echo addslashes($course['course_code']); ?>')" 
-                                                title="Delete">
-                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -288,97 +271,10 @@ try {
             <!-- Pagination -->
             <?php if ($totalPages > 1): ?>
                 <div class="d-flex justify-content-center mt-4">
-                    <?php echo generatePagination($page, $totalPages, '?department=' . $departmentFilter . '&year=' . $yearFilter); ?>
+                    <?php echo generatePagination($filters['page'], $totalPages, '?department=' . $filters['department'] . '&year=' . $filters['year']); ?>
                 </div>
             <?php endif; ?>
         <?php endif; ?>
-    </div>
-</div>
-
-<!-- Edit Course Modal -->
-<div class="modal fade" id="editCourseModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Edit Course</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="editCourseForm">
-                    <input type="hidden" id="editCourseId" name="course_id">
-                    <input type="hidden" name="action" value="edit">
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group mb-3">
-                                <label for="editCourseCode" class="form-label">Course Code *</label>
-                                <input type="text" class="form-control" id="editCourseCode" name="course_code" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group mb-3">
-                                <label for="editCourseName" class="form-label">Course Name *</label>
-                                <input type="text" class="form-control" id="editCourseName" name="course_name" required>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group mb-3">
-                                <label for="editDepartment" class="form-label">Department *</label>
-                                <select class="form-select" id="editDepartment" name="department" required>
-                                    <option value="">Select Department</option>
-                                    <option value="survey_geodesy">Survey & Geodesy</option>
-                                    <option value="remote_sensing_gis">Remote Sensing & GIS</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group mb-3">
-                                <label for="editYear" class="form-label">Academic Year *</label>
-                                <select class="form-select" id="editYear" name="year" required>
-                                    <option value="">Select Year</option>
-                                    <option value="1">1st Year</option>
-                                    <option value="2">2nd Year</option>
-                                    <option value="3">3rd Year</option>
-                                    <option value="4">4th Year</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group mb-3">
-                                <label for="editSubmissionEndDate" class="form-label">Submission End Date</label>
-                                <input type="date" 
-                                       class="form-control" 
-                                       id="editSubmissionEndDate" 
-                                       name="submission_end_date"
-                                       min="<?php echo date('Y-m-d'); ?>">
-                                <small class="form-text text-muted">
-                                    Optional. Set a deadline for medical excuse submissions for this course.
-                                </small>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <!-- Empty column for spacing -->
-                        </div>
-                    </div>
-                    
-                    <div class="form-group mb-3">
-                        <label for="editDescription" class="form-label">Description</label>
-                        <textarea class="form-control" id="editDescription" name="description" rows="3"
-                                  placeholder="Brief description of the course"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="updateCourse()">Update Course</button>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -404,46 +300,34 @@ try {
 // Search functionality
 document.getElementById('searchInput').addEventListener('keyup', function() {
     const searchTerm = this.value.toLowerCase();
-    const tableRows = document.querySelectorAll('#coursesTable tbody tr');
-    
-    tableRows.forEach(row => {
-        const text = row.textContent.toLowerCase();
-        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    document.querySelectorAll('#coursesTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(searchTerm) ? '' : 'none';
     });
 });
 
 // Auto-submit filters
 document.addEventListener('DOMContentLoaded', function() {
-    const filterSelects = ['department', 'year'];
-    
-    filterSelects.forEach(selectId => {
-        const select = document.getElementById(selectId);
-        if (select) {
-            select.addEventListener('change', function() {
-                this.form.submit();
-            });
-        }
+    ['department', 'year'].forEach(id => {
+        const select = document.getElementById(id);
+        if (select) select.addEventListener('change', () => select.form.submit());
     });
 });
 
-// Course management functions
-function editCourse(courseId) {
-    // Fetch course details and populate modal
+
+
+function viewCourse(courseId) {
+    fetchCourseData(courseId, course => {
+        document.getElementById('courseDetailsBody').innerHTML = generateCourseDetails(course);
+        new bootstrap.Modal(document.getElementById('viewCourseModal')).show();
+    });
+}
+
+function fetchCourseData(courseId, callback) {
     fetch(`../includes/get_course_details.php?id=${courseId}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const course = data.course;
-                document.getElementById('editCourseId').value = course.id;
-                document.getElementById('editCourseCode').value = course.course_code;
-                document.getElementById('editCourseName').value = course.course_name;
-                document.getElementById('editDepartment').value = course.department;
-                document.getElementById('editYear').value = course.year;
-                document.getElementById('editDescription').value = course.description || '';
-                document.getElementById('editSubmissionEndDate').value = course.submission_end_date || '';
-                
-                const modal = new bootstrap.Modal(document.getElementById('editCourseModal'));
-                modal.show();
+                callback(data.course);
             } else {
                 showAlert('Error loading course details', 'danger');
             }
@@ -454,126 +338,69 @@ function editCourse(courseId) {
         });
 }
 
-function updateCourse() {
-    const form = document.getElementById('editCourseForm');
-    const formData = new FormData(form);
+function generateCourseDetails(course) {
+    const details = [
+        ['Course Code', course.course_code],
+        ['Course Name', course.course_name],
+        ['Department', course.department === 'survey_geodesy' ? 'Survey & Geodesy' : 'Remote Sensing & GIS'],
+        ['Academic Year', `Year ${course.year}`],
+        ['Submission End Date', course.submission_end_date ? new Date(course.submission_end_date).toLocaleDateString() : 'No deadline set'],
+        ['Description', course.description || 'No description available'],
+        ['Created', new Date(course.created_at).toLocaleDateString()]
+    ];
+
+    return details.map(([label, value]) => `
+        <div class="row">
+            <div class="col-sm-4"><strong>${label}:</strong></div>
+            <div class="col-sm-8">${value}</div>
+        </div>
+        <hr>
+    `).join('');
+}
+
+
+
+// Utility functions
+function showAlert(message, type) {
+    // Remove any existing alerts
+    const existingAlert = document.querySelector('.alert-dismissible');
+    if (existingAlert) {
+        existingAlert.remove();
+    }
     
-    showLoading(true);
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
     
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = document.querySelector('.alert-dismissible');
+        if (alert) alert.remove();
+    }, 5000);
+}
+
+function processRequest(formData, successMessage) {
     fetch('process_course.php', {
         method: 'POST',
         body: formData
     })
     .then(response => response.json())
     .then(data => {
-        showLoading(false);
+        showAlert(data.message, data.success ? 'success' : 'danger');
         if (data.success) {
-            showAlert(data.message, 'success');
-            setTimeout(() => {
-                location.reload();
-            }, 1500);
-        } else {
-            showAlert(data.message, 'danger');
+            setTimeout(() => location.reload(), 1500);
         }
-        
-        const modal = bootstrap.Modal.getInstance(document.getElementById('editCourseModal'));
-        modal.hide();
     })
     .catch(error => {
-        showLoading(false);
         console.error('Error:', error);
         showAlert('An error occurred. Please try again.', 'danger');
     });
-}
-
-function viewCourse(courseId) {
-    // Fetch and display course details
-    fetch(`../includes/get_course_details.php?id=${courseId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const course = data.course;
-                const detailsHtml = `
-                    <div class="row">
-                        <div class="col-sm-4"><strong>Course Code:</strong></div>
-                        <div class="col-sm-8">${course.course_code}</div>
-                    </div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-sm-4"><strong>Course Name:</strong></div>
-                        <div class="col-sm-8">${course.course_name}</div>
-                    </div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-sm-4"><strong>Department:</strong></div>
-                        <div class="col-sm-8">${course.department === 'survey_geodesy' ? 'Survey & Geodesy' : 'Remote Sensing & GIS'}</div>
-                    </div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-sm-4"><strong>Academic Year:</strong></div>
-                        <div class="col-sm-8">Year ${course.year}</div>
-                    </div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-sm-4"><strong>Submission End Date:</strong></div>
-                        <div class="col-sm-8">${course.submission_end_date ? new Date(course.submission_end_date).toLocaleDateString() : 'No deadline set'}</div>
-                    </div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-sm-4"><strong>Description:</strong></div>
-                        <div class="col-sm-8">${course.description || 'No description available'}</div>
-                    </div>
-                    <hr>
-                    <div class="row">
-                        <div class="col-sm-4"><strong>Created:</strong></div>
-                        <div class="col-sm-8">${new Date(course.created_at).toLocaleDateString()}</div>
-                    </div>
-                `;
-                
-                document.getElementById('courseDetailsBody').innerHTML = detailsHtml;
-                
-                const modal = new bootstrap.Modal(document.getElementById('viewCourseModal'));
-                modal.show();
-            } else {
-                showAlert('Error loading course details', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showAlert('Error loading course details', 'danger');
-        });
-}
-
-function deleteCourse(courseId, courseCode) {
-    if (confirm(`Are you sure you want to delete course "${courseCode}"? This action cannot be undone.`)) {
-        showLoading(true);
-        
-        const formData = new FormData();
-        formData.append('action', 'delete');
-        formData.append('course_id', courseId);
-        
-        fetch('process_course.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            showLoading(false);
-            if (data.success) {
-                showAlert(data.message, 'success');
-                setTimeout(() => {
-                    location.reload();
-                }, 1500);
-            } else {
-                showAlert(data.message, 'danger');
-            }
-        })
-        .catch(error => {
-            showLoading(false);
-            console.error('Error:', error);
-            showAlert('An error occurred. Please try again.', 'danger');
-        });
-    }
 }
 </script>
 

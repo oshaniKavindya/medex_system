@@ -15,6 +15,9 @@ $currentUser = getCurrentUser();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($pageTitle) ? $pageTitle . ' - ' : ''; ?>Medical Excuse Management System</title>
     
+    <!-- jQuery (must be loaded first) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    
     <!-- Bootstrap CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -105,34 +108,116 @@ $currentUser = getCurrentUser();
                     <ul class="navbar-nav">
                         <!-- Notifications -->
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle position-relative" href="#" role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle position-relative" href="#" role="button" data-bs-toggle="dropdown" title="Notifications">
                                 <i class="fas fa-bell"></i>
                                 <?php
-                                $notifications = getUserNotifications($currentUser['id'], 5);
-                                $unreadCount = array_reduce($notifications, function($count, $notif) {
-                                    return $count + ($notif['is_read'] == 0 ? 1 : 0);
-                                }, 0);
-                                if ($unreadCount > 0):
+                                // Get notifications directly in header
+                                try {
+                                    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+                                    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                                    
+                                    // Get recent notifications
+                                    $stmt = $pdo->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
+                                    $stmt->execute([$currentUser['id']]);
+                                    $headerNotifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                    
+                                    // Get unread count
+                                    $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+                                    $stmt->execute([$currentUser['id']]);
+                                    $headerUnreadCount = $stmt->fetchColumn();
+                                    
+                                } catch (Exception $e) {
+                                    $headerNotifications = [];
+                                    $headerUnreadCount = 0;
+                                }
+                                
+                                if ($headerUnreadCount > 0):
                                 ?>
-                                    <span class="notification-badge"><?php echo $unreadCount; ?></span>
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                        <?php echo $headerUnreadCount; ?>
+                                        <span class="visually-hidden">unread notifications</span>
+                                    </span>
                                 <?php endif; ?>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end" style="min-width: 300px;">
-                                <li><h6 class="dropdown-header">Notifications</h6></li>
-                                <?php if (empty($notifications)): ?>
-                                    <li><span class="dropdown-item text-muted">No notifications</span></li>
+                            <ul class="dropdown-menu dropdown-menu-end notification-dropdown" style="min-width: 350px; max-height: 400px; overflow-y: auto;">
+                                <li>
+                                    <h6 class="dropdown-header d-flex justify-content-between align-items-center">
+                                        <span>Notifications</span>
+                                        <?php if ($headerUnreadCount > 0): ?>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="markAllAsRead()" title="Mark all as read">
+                                                <i class="fas fa-check-double"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                    </h6>
+                                </li>
+                                
+                                <?php if (empty($headerNotifications)): ?>
+                                    <li><span class="dropdown-item text-muted text-center py-3">No notifications</span></li>
                                 <?php else: ?>
-                                    <?php foreach ($notifications as $notification): ?>
+                                    <?php foreach ($headerNotifications as $notification): ?>
                                         <li>
-                                            <a class="dropdown-item notification-item <?php echo $notification['is_read'] == 0 ? 'unread' : ''; ?>" 
-                                               href="#" 
-                                               data-notification-id="<?php echo $notification['id']; ?>">
-                                                <small class="text-muted"><?php echo date('M j, g:i A', strtotime($notification['created_at'])); ?></small><br>
-                                                <?php echo htmlspecialchars($notification['message']); ?>
-                                            </a>
+                                            <div class="dropdown-item notification-item <?php echo $notification['is_read'] == 0 ? 'unread' : ''; ?>" 
+                                                 data-notification-id="<?php echo $notification['id']; ?>"
+                                                 style="cursor: pointer; border-left: <?php echo $notification['is_read'] == 0 ? '4px solid #0d6efd' : '4px solid transparent'; ?>;">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div class="flex-grow-1">
+                                                        <div class="d-flex align-items-center mb-1">
+                                                            <?php 
+                                                            $iconClass = 'fas fa-info-circle text-primary';
+                                                            switch($notification['type']) {
+                                                                case 'success':
+                                                                    $iconClass = 'fas fa-check-circle text-success';
+                                                                    break;
+                                                                case 'warning':
+                                                                    $iconClass = 'fas fa-exclamation-triangle text-warning';
+                                                                    break;
+                                                                case 'error':
+                                                                    $iconClass = 'fas fa-times-circle text-danger';
+                                                                    break;
+                                                            }
+                                                            ?>
+                                                            <i class="<?php echo $iconClass; ?> me-2"></i>
+                                                            <small class="text-muted">
+                                                                <?php 
+                                                                $time = time() - strtotime($notification['created_at']);
+                                                                if ($time < 60) echo 'just now';
+                                                                elseif ($time < 3600) echo floor($time / 60) . 'm ago';
+                                                                elseif ($time < 86400) echo floor($time / 3600) . 'h ago';
+                                                                elseif ($time < 2592000) echo floor($time / 86400) . 'd ago';
+                                                                else echo date('M j', strtotime($notification['created_at']));
+                                                                ?>
+                                                            </small>
+                                                            <?php if ($notification['is_read'] == 0): ?>
+                                                                <span class="badge bg-primary ms-2" style="font-size: 0.65em;">New</span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <div class="small">
+                                                            <?php echo htmlspecialchars(substr($notification['message'], 0, 80)) . (strlen($notification['message']) > 80 ? '...' : ''); ?>
+                                                        </div>
+                                                    </div>
+                                                    <div class="d-flex">
+                                                        <?php if ($notification['is_read'] == 0): ?>
+                                                            <button class="btn btn-sm btn-outline-secondary" 
+                                                                    onclick="markAsRead(<?php echo $notification['id']; ?>)"
+                                                                    title="Mark as read">
+                                                                <i class="fas fa-check" style="font-size: 0.7em;"></i>
+                                                            </button>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                     <?php endforeach; ?>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($headerNotifications)): ?>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item text-center fw-bold text-primary" href="/medex_system/notifications.php">
+                                            <i class="fas fa-eye me-1"></i>View All Notifications
+                                        </a>
+                                    </li>
                                 <?php endif; ?>
                             </ul>
                         </li>
@@ -205,6 +290,72 @@ $currentUser = getCurrentUser();
         ?>
     </div>
 
+    <script>
+    $(document).ready(function() {
+        // Handle notification clicks in dropdown
+        $('.notification-item').click(function(e) {
+            e.preventDefault();
+            const notificationId = $(this).data('notification-id');
+            
+            if (notificationId && $(this).hasClass('unread')) {
+                // Mark as read
+                $.post('/medex_system/ajax/mark_notification_read.php', {
+                    notification_id: notificationId
+                }, function(response) {
+                    if (response.success) {
+                        $(`[data-notification-id="${notificationId}"]`).removeClass('unread');
+                        updateNotificationBadge();
+                    }
+                });
+            }
+        });
+        
+        // Update notification badge count
+        function updateNotificationBadge() {
+            const unreadCount = $('.notification-item.unread').length;
+            const $badge = $('.position-absolute.badge');
+            
+            if (unreadCount > 0) {
+                $badge.text(unreadCount).show();
+            } else {
+                $badge.hide();
+            }
+        }
+    });
+    
+    // Mark single notification as read
+    function markAsRead(notificationId) {
+        event.stopPropagation();
+        
+        $.post('/medex_system/ajax/mark_notification_read.php', {
+            notification_id: notificationId
+        }, function(response) {
+            if (response.success) {
+                location.reload();
+            }
+        }).fail(function() {
+            alert('Failed to mark notification as read');
+        });
+    }
+    
+    // Mark all notifications as read
+    function markAllAsRead() {
+        event.stopPropagation();
+        
+        if (!confirm('Mark all notifications as read?')) {
+            return;
+        }
+        
+        $.post('/medex_system/ajax/mark_all_notifications_read.php', {}, function(response) {
+            if (response.success) {
+                location.reload();
+            }
+        }).fail(function() {
+            alert('Failed to mark all notifications as read');
+        });
+    }
+    </script>
+
     <!-- Main Content -->
     <main class="main-content">
-        <div class="container"><?php // Main content will be inserted here by individual pages ?>
+        <div class="container"><?php?>

@@ -363,7 +363,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
     if (selectedLecturers === 0) {
         e.preventDefault();
         e.stopPropagation();
-        showAlert('Please select at least one lecturer.', 'danger');
+        alert('Please select at least one lecturer.');
         return false;
     }
     
@@ -371,22 +371,25 @@ document.querySelector('form').addEventListener('submit', function(e) {
         e.preventDefault();
         e.stopPropagation();
     } else {
-        showLoading(true);
-        
         // Disable submit button to prevent double submission
         const submitBtn = this.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Assigning...';
         
-        // Confirmation
-        const confirmMsg = `Are you sure you want to assign this application to ${selectedLecturers} lecturer(s)?`;
+        // Show immediate feedback
+        const confirmMsg = `Are you sure you want to assign this application to ${selectedLecturers} lecturer(s)?\n\nThis will notify all selected lecturers immediately.`;
         if (!confirm(confirmMsg)) {
             e.preventDefault();
-            showLoading(false);
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Assign to Selected Lecturer(s)';
             return false;
         }
+        
+        // Show progress indicator
+        const progressDiv = document.createElement('div');
+        progressDiv.className = 'alert alert-info mt-3';
+        progressDiv.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing assignment... Please wait.';
+        this.appendChild(progressDiv);
     }
     
     this.classList.add('was-validated');

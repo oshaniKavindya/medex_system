@@ -5,15 +5,12 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/includes/header.php';
 requireRole('admin');
 
 $user = getCurrentUser();
-
-// Handle single application view
 $viewSingle = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 try {
     $pdo = getConnection();
     
     if ($viewSingle) {
-        // Get single application details
         $stmt = $pdo->prepare("
             SELECT a.*, c.course_name, c.course_code, c.department, c.year,
                    u.full_name as student_name, u.email as student_email, u.department as student_dept, u.year as student_year
@@ -31,43 +28,38 @@ try {
             exit();
         }
     } else {
-        // Get all applications with filters
-        $statusFilter = isset($_GET['status']) ? sanitize($_GET['status']) : '';
-        $departmentFilter = isset($_GET['department']) ? sanitize($_GET['department']) : '';
-        $sortBy = isset($_GET['sort']) ? sanitize($_GET['sort']) : 'submitted_at';
-        $sortOrder = isset($_GET['order']) && $_GET['order'] === 'asc' ? 'ASC' : 'DESC';
-        $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
-        $perPage = 15;
-        $offset = ($page - 1) * $perPage;
+        // Extract filter parameters
+        $filters = [
+            'status' => sanitize($_GET['status'] ?? ''),
+            'department' => sanitize($_GET['department'] ?? ''),
+            'sort' => sanitize($_GET['sort'] ?? 'submitted_at'),
+            'order' => ($_GET['order'] ?? '') === 'asc' ? 'ASC' : 'DESC',
+            'page' => max(1, (int)($_GET['page'] ?? 1))
+        ];
         
-        // Build WHERE conditions
+        $perPage = 15;
+        $offset = ($filters['page'] - 1) * $perPage;
+        
+        // Build dynamic WHERE clause
         $whereConditions = ['1=1'];
         $params = [];
         
-        if (!empty($statusFilter)) {
-            $whereConditions[] = "a.status = ?";
-            $params[] = $statusFilter;
-        }
-        
-        if (!empty($departmentFilter)) {
-            $whereConditions[] = "u.department = ?";
-            $params[] = $departmentFilter;
+        foreach (['status', 'department'] as $field) {
+            if (!empty($filters[$field])) {
+                $column = $field === 'department' ? 'u.department' : "a.$field";
+                $whereConditions[] = "$column = ?";
+                $params[] = $filters[$field];
+            }
         }
         
         $whereClause = implode(' AND ', $whereConditions);
         
-        // Get total count
-        $countStmt = $pdo->prepare("
-            SELECT COUNT(*) 
-            FROM applications a 
-            JOIN users u ON a.student_id = u.id 
-            WHERE $whereClause
-        ");
+        // Get total count and applications in one efficient query pattern
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM applications a JOIN users u ON a.student_id = u.id WHERE $whereClause");
         $countStmt->execute($params);
         $totalApplications = $countStmt->fetchColumn();
         $totalPages = ceil($totalApplications / $perPage);
         
-        // Get applications
         $stmt = $pdo->prepare("
             SELECT a.*, c.course_name, c.course_code, 
                    u.full_name as student_name, u.department as student_dept, u.year as student_year
@@ -75,7 +67,7 @@ try {
             JOIN courses c ON a.course_id = c.id 
             JOIN users u ON a.student_id = u.id
             WHERE $whereClause
-            ORDER BY a.$sortBy $sortOrder 
+            ORDER BY a.{$filters['sort']} {$filters['order']} 
             LIMIT $perPage OFFSET $offset
         ");
         $stmt->execute($params);
@@ -84,8 +76,6 @@ try {
     
 } catch (PDOException $e) {
     error_log("Database error in manage applications: " . $e->getMessage());
-
-    error_log("Where clause: " . $whereClause);
     if ($viewSingle) {
         $_SESSION['error_message'] = 'Error loading application details.';
         header('Location: manage_applications.php');
@@ -94,6 +84,47 @@ try {
     $applications = [];
     $totalApplications = 0;
     $totalPages = 0;
+}
+
+// Helper functions for cleaner HTML output
+function renderDocumentCard($type, $file, $icon, $color) {
+    $path = ['letter' => 'letters', 'application' => 'applications', 'certificate' => 'certificates'][$type] ?? $type;
+    return "
+        <div class='col-md-4 text-center mb-3'>
+            <div class='border rounded p-3'>
+                <i class='fas fa-$icon fa-3x text-$color mb-3'></i>
+                <h6>" . ucfirst($type) . "</h6>
+                <a href='../assets/uploads/$path/$file' class='btn btn-outline-primary btn-sm me-1' target='_blank'>
+                    <i class='fas fa-eye me-1'></i>View
+                </a>
+                <a href='../assets/uploads/$path/$file' class='btn btn-outline-secondary btn-sm' download>
+                    <i class='fas fa-download me-1'></i>Download
+                </a>
+            </div>
+        </div>";
+}
+
+function renderTimelineItem($title, $time, $status = 'completed') {
+    $statusClass = $status === 'active' ? 'active' : 'completed';
+    $timeText = $time ? date('M j, Y g:i A', strtotime($time)) : ($status === 'active' ? 'Current step' : 'Completed');
+    
+    return "
+        <div class='timeline-item $statusClass'>
+            <div class='timeline-marker'></div>
+            <div class='timeline-content'>
+                <h6>$title</h6>
+                <small class='text-muted'>$timeText</small>
+            </div>
+        </div>";
+}
+
+function renderFilterSelect($name, $options, $selected = '') {
+    $html = "<select name='$name' id='$name' class='form-select'>";
+    foreach ($options as $value => $label) {
+        $sel = $selected === $value ? 'selected' : '';
+        $html .= "<option value='$value' $sel>$label</option>";
+    }
+    return $html . "</select>";
 }
 ?>
 
@@ -106,8 +137,7 @@ try {
         </div>
         <div>
             <a href="manage_applications.php" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-2"></i>
-                Back to Applications
+                <i class="fas fa-arrow-left me-2"></i>Back to Applications
             </a>
         </div>
     </div>
@@ -117,56 +147,28 @@ try {
             <!-- Application Information -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle me-2"></i>
-                        Application Details
-                    </h5>
+                    <h5 class="card-title mb-0"><i class="fas fa-info-circle me-2"></i>Application Details</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <strong>Student:</strong><br>
-                            <?php echo htmlspecialchars($application['student_name']); ?><br>
-                            <small class="text-muted"><?php echo htmlspecialchars($application['student_email']); ?></small>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <strong>Department & Year:</strong><br>
-                            <?php echo getDepartmentName($application['student_dept']); ?> - Year <?php echo $application['student_year']; ?>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <strong>Course:</strong><br>
-                            <?php echo htmlspecialchars($application['course_code'] . ' - ' . $application['course_name']); ?>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <strong>Absence Type:</strong><br>
-                            <span class="badge badge-secondary"><?php echo ucfirst($application['application_type']); ?></span>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <strong>Date of Absence:</strong><br>
-                            <?php echo date('F j, Y', strtotime($application['application_date'])); ?>
-                            <?php if ($application['application_time']): ?>
-                                at <?php echo date('g:i A', strtotime($application['application_time'])); ?>
-                            <?php endif; ?>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <strong>Submitted On:</strong><br>
-                            <?php echo date('F j, Y g:i A', strtotime($application['submitted_at'])); ?>
-                        </div>
-                        <div class="col-12 mb-3">
-                            <strong>Reason:</strong><br>
-                            <?php echo nl2br(htmlspecialchars($application['reason'])); ?>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <strong>Certificate Type:</strong><br>
-                            <?php echo $application['certificate_type'] === 'government' ? 'Government Hospital' : 'Private (Certified)'; ?>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <strong>Current Status:</strong><br>
-                            <span class="badge <?php echo getStatusBadgeClass($application['status']); ?>">
-                                <?php echo formatStatus($application['status']); ?>
-                            </span>
-                        </div>
-
+                        <?php 
+                        $details = [
+                            ['Student', $application['student_name'] . '<br><small class="text-muted">' . htmlspecialchars($application['student_email']) . '</small>'],
+                            ['Department & Year', getDepartmentName($application['student_dept']) . ' - Year ' . $application['student_year']],
+                            ['Course', htmlspecialchars($application['course_code'] . ' - ' . $application['course_name'])],
+                            ['Absence Type', '<span class="badge badge-secondary">' . ucfirst($application['application_type']) . '</span>'],
+                            ['Date of Absence', date('F j, Y', strtotime($application['application_date'])) . ($application['application_time'] ? ' at ' . date('g:i A', strtotime($application['application_time'])) : '')],
+                            ['Submitted On', date('F j, Y g:i A', strtotime($application['submitted_at']))],
+                            ['Certificate Type', $application['certificate_type'] === 'government' ? 'Government Hospital' : 'Private (Certified)', 'col-12'],
+                            ['Reason', nl2br(htmlspecialchars($application['reason'])), 'col-12'],
+                            ['Current Status', '<span class="badge ' . getStatusBadgeClass($application['status']) . '">' . formatStatus($application['status']) . '</span>']
+                        ];
+                        
+                        foreach ($details as $detail) {
+                            $colClass = $detail[2] ?? 'col-md-6';
+                            echo "<div class='$colClass mb-3'><strong>{$detail[0]}:</strong><br>{$detail[1]}</div>";
+                        }
+                        ?>
                     </div>
                 </div>
             </div>
@@ -174,55 +176,15 @@ try {
             <!-- Documents Review -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-file-alt me-2"></i>
-                        Documents Review
-                    </h5>
+                    <h5 class="card-title mb-0"><i class="fas fa-file-alt me-2"></i>Documents Review</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-4 text-center mb-3">
-                            <div class="border rounded p-3">
-                                <i class="fas fa-envelope fa-3x text-primary mb-3"></i>
-                                <h6>Letter</h6>
-                                <a href="../assets/uploads/letters/<?php echo $application['letter_file']; ?>" 
-                                   class="btn btn-outline-primary btn-sm" target="_blank">
-                                    <i class="fas fa-eye me-1"></i>View
-                                </a>
-                                <a href="../assets/uploads/letters/<?php echo $application['letter_file']; ?>" 
-                                   class="btn btn-outline-secondary btn-sm" download>
-                                    <i class="fas fa-download me-1"></i>Download
-                                </a>
-                            </div>
-                        </div>
-                        <div class="col-md-4 text-center mb-3">
-                            <div class="border rounded p-3">
-                                <i class="fas fa-file-medical fa-3x text-warning mb-3"></i>
-                                <h6>Medical Application</h6>
-                                <a href="../assets/uploads/applications/<?php echo $application['medical_application_file']; ?>" 
-                                   class="btn btn-outline-primary btn-sm" target="_blank">
-                                    <i class="fas fa-eye me-1"></i>View
-                                </a>
-                                <a href="../assets/uploads/applications/<?php echo $application['medical_application_file']; ?>" 
-                                   class="btn btn-outline-secondary btn-sm" download>
-                                    <i class="fas fa-download me-1"></i>Download
-                                </a>
-                            </div>
-                        </div>
-                        <div class="col-md-4 text-center mb-3">
-                            <div class="border rounded p-3">
-                                <i class="fas fa-certificate fa-3x text-success mb-3"></i>
-                                <h6>Medical Certificate</h6>
-                                <a href="../assets/uploads/certificates/<?php echo $application['medical_certificate_file']; ?>" 
-                                   class="btn btn-outline-primary btn-sm" target="_blank">
-                                    <i class="fas fa-eye me-1"></i>View
-                                </a>
-                                <a href="../assets/uploads/certificates/<?php echo $application['medical_certificate_file']; ?>" 
-                                   class="btn btn-outline-secondary btn-sm" download>
-                                    <i class="fas fa-download me-1"></i>Download
-                                </a>
-                            </div>
-                        </div>
+                        <?php
+                        echo renderDocumentCard('letter', $application['letter_file'], 'envelope', 'primary');
+                        echo renderDocumentCard('application', $application['medical_application_file'], 'file-medical', 'warning');
+                        echo renderDocumentCard('certificate', $application['medical_certificate_file'], 'certificate', 'success');
+                        ?>
                     </div>
                 </div>
             </div>
@@ -233,10 +195,7 @@ try {
             <?php if ($application['status'] === 'pending'): ?>
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-check-circle me-2"></i>
-                            Review Actions
-                        </h5>
+                        <h5 class="card-title mb-0"><i class="fas fa-check-circle me-2"></i>Review Actions</h5>
                     </div>
                     <div class="card-body">
                         <form action="process_applications.php" method="POST" class="needs-validation" novalidate>
@@ -250,24 +209,18 @@ try {
                                     <option value="approve">Approve and Forward to HOD</option>
                                     <option value="reject">Reject Application</option>
                                 </select>
-                                <div class="invalid-feedback">
-                                    Please select a decision.
-                                </div>
+                                <div class="invalid-feedback">Please select a decision.</div>
                             </div>
                             
                             <div class="form-group mb-3">
                                 <label for="comments" class="form-label">Comments</label>
-                                <textarea class="form-control" id="comments" name="comments" rows="4"
-                                          placeholder="Add your review comments here..."></textarea>
-                                <small class="form-text text-muted">
-                                    Comments will be visible to the student and HOD.
-                                </small>
+                                <textarea class="form-control" id="comments" name="comments" rows="4" placeholder="Add your review comments here..."></textarea>
+                                <small class="form-text text-muted">Comments will be visible to the student and HOD.</small>
                             </div>
                             
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-check me-2"></i>
-                                    Submit Review
+                                    <i class="fas fa-check me-2"></i>Submit Review
                                 </button>
                             </div>
                         </form>
@@ -276,17 +229,12 @@ try {
             <?php else: ?>
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Review Status
-                        </h5>
+                        <h5 class="card-title mb-0"><i class="fas fa-info-circle me-2"></i>Review Status</h5>
                     </div>
                     <div class="card-body">
                         <div class="alert alert-info alert-permanent">
                             <h6>Already Reviewed</h6>
-                            <p class="mb-0">This application has been reviewed and is currently: 
-                               <strong><?php echo formatStatus($application['status']); ?></strong>
-                            </p>
+                            <p class="mb-0">This application has been reviewed and is currently: <strong><?php echo formatStatus($application['status']); ?></strong></p>
                         </div>
                         
                         <?php if ($application['admin_comments']): ?>
@@ -302,60 +250,25 @@ try {
             <!-- Application Timeline -->
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-timeline me-2"></i>
-                        Application Timeline
-                    </h5>
+                    <h5 class="card-title mb-0"><i class="fas fa-timeline me-2"></i>Application Timeline</h5>
                 </div>
                 <div class="card-body">
                     <div class="timeline">
-                        <div class="timeline-item completed">
-                            <div class="timeline-marker"></div>
-                            <div class="timeline-content">
-                                <h6>Application Submitted</h6>
-                                <small class="text-muted"><?php echo date('M j, Y g:i A', strtotime($application['submitted_at'])); ?></small>
-                            </div>
-                        </div>
+                        <?php
+                        echo renderTimelineItem('Application Submitted', $application['submitted_at']);
                         
-                        <?php if (in_array($application['status'], ['admin_reviewed', 'admin_rejected', 'hod_approved', 'hod_rejected', 'completed'])): ?>
-                            <div class="timeline-item completed">
-                                <div class="timeline-marker"></div>
-                                <div class="timeline-content">
-                                    <h6>Admin Review</h6>
-                                    <small class="text-muted">
-                                        <?php echo $application['reviewed_at'] ? date('M j, Y g:i A', strtotime($application['reviewed_at'])) : 'Completed'; ?>
-                                    </small>
-                                </div>
-                            </div>
-                        <?php else: ?>
-                            <div class="timeline-item active">
-                                <div class="timeline-marker"></div>
-                                <div class="timeline-content">
-                                    <h6>Pending Admin Review</h6>
-                                    <small class="text-muted">Current step</small>
-                                </div>
-                            </div>
-                        <?php endif; ?>
+                        if (in_array($application['status'], ['admin_reviewed', 'admin_rejected', 'hod_approved', 'hod_rejected', 'completed'])) {
+                            echo renderTimelineItem('Admin Review', $application['reviewed_at']);
+                        } else {
+                            echo renderTimelineItem('Pending Admin Review', null, 'active');
+                        }
                         
-                        <?php if (in_array($application['status'], ['hod_approved', 'hod_rejected', 'completed'])): ?>
-                            <div class="timeline-item completed">
-                                <div class="timeline-marker"></div>
-                                <div class="timeline-content">
-                                    <h6>HOD Decision</h6>
-                                    <small class="text-muted">
-                                        <?php echo $application['approved_at'] ? date('M j, Y g:i A', strtotime($application['approved_at'])) : 'Completed'; ?>
-                                    </small>
-                                </div>
-                            </div>
-                        <?php elseif ($application['status'] === 'admin_reviewed'): ?>
-                            <div class="timeline-item active">
-                                <div class="timeline-marker"></div>
-                                <div class="timeline-content">
-                                    <h6>Pending HOD Review</h6>
-                                    <small class="text-muted">Awaiting HOD decision</small>
-                                </div>
-                            </div>
-                        <?php endif; ?>
+                        if (in_array($application['status'], ['hod_approved', 'hod_rejected', 'completed'])) {
+                            echo renderTimelineItem('HOD Decision', $application['approved_at']);
+                        } elseif ($application['status'] === 'admin_reviewed') {
+                            echo renderTimelineItem('Pending HOD Review', null, 'active');
+                        }
+                        ?>
                     </div>
                 </div>
             </div>
@@ -371,8 +284,7 @@ try {
         </div>
         <div>
             <a href="dashboard.php" class="btn btn-outline-secondary">
-                <i class="fas fa-tachometer-alt me-2"></i>
-                Dashboard
+                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
             </a>
         </div>
     </div>
@@ -383,40 +295,40 @@ try {
             <form method="GET" class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label for="status" class="form-label">Filter by Status</label>
-                    <select name="status" id="status" class="form-select">
-                        <option value="">All Status</option>
-                        <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending Review</option>
-                        <option value="admin_reviewed" <?php echo $statusFilter === 'admin_reviewed' ? 'selected' : ''; ?>>Reviewed</option>
-                        <option value="admin_rejected" <?php echo $statusFilter === 'admin_rejected' ? 'selected' : ''; ?>>Rejected</option>
-                        <option value="hod_approved" <?php echo $statusFilter === 'hod_approved' ? 'selected' : ''; ?>>Approved</option>
-                        <option value="completed" <?php echo $statusFilter === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                    </select>
+                    <?php echo renderFilterSelect('status', [
+                        '' => 'All Status',
+                        'pending' => 'Pending Review',
+                        'admin_reviewed' => 'Reviewed',
+                        'admin_rejected' => 'Rejected',
+                        'hod_approved' => 'Approved',
+                        'completed' => 'Completed'
+                    ], $filters['status'] ?? ''); ?>
                 </div>
                 
                 <div class="col-md-3">
                     <label for="department" class="form-label">Filter by Department</label>
-                    <select name="department" id="department" class="form-select">
-                        <option value="">All Departments</option>
-                        <option value="survey_geodesy" <?php echo $departmentFilter === 'survey_geodesy' ? 'selected' : ''; ?>>Survey & Geodesy</option>
-                        <option value="remote_sensing_gis" <?php echo $departmentFilter === 'remote_sensing_gis' ? 'selected' : ''; ?>>Remote Sensing & GIS</option>
-                    </select>
+                    <?php echo renderFilterSelect('department', [
+                        '' => 'All Departments',
+                        'survey_geodesy' => 'Survey & Geodesy',
+                        'remote_sensing_gis' => 'Remote Sensing & GIS'
+                    ], $filters['department'] ?? ''); ?>
                 </div>
                 
                 <div class="col-md-2">
                     <label for="sort" class="form-label">Sort By</label>
-                    <select name="sort" id="sort" class="form-select">
-                        <option value="submitted_at" <?php echo $sortBy === 'submitted_at' ? 'selected' : ''; ?>>Date Submitted</option>
-                        <option value="application_date" <?php echo $sortBy === 'application_date' ? 'selected' : ''; ?>>Absence Date</option>
-                        <option value="status" <?php echo $sortBy === 'status' ? 'selected' : ''; ?>>Status</option>
-                    </select>
+                    <?php echo renderFilterSelect('sort', [
+                        'submitted_at' => 'Date Submitted',
+                        'application_date' => 'Absence Date',
+                        'status' => 'Status'
+                    ], $filters['sort'] ?? ''); ?>
                 </div>
                 
                 <div class="col-md-2">
                     <label for="order" class="form-label">Order</label>
-                    <select name="order" id="order" class="form-select">
-                        <option value="desc" <?php echo $sortOrder === 'DESC' ? 'selected' : ''; ?>>Newest First</option>
-                        <option value="asc" <?php echo $sortOrder === 'ASC' ? 'selected' : ''; ?>>Oldest First</option>
-                    </select>
+                    <?php echo renderFilterSelect('order', [
+                        'desc' => 'Newest First',
+                        'asc' => 'Oldest First'
+                    ], strtolower($filters['order'] ?? '')); ?>
                 </div>
                 
                 <div class="col-md-2">
@@ -432,8 +344,7 @@ try {
     <div class="card">
         <div class="card-header">
             <h5 class="card-title mb-0">
-                <i class="fas fa-list me-2"></i>
-                Applications (<?php echo $totalApplications; ?> total)
+                <i class="fas fa-list me-2"></i>Applications (<?php echo $totalApplications; ?> total)
             </h5>
         </div>
         <div class="card-body">
@@ -447,14 +358,8 @@ try {
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Student</th>
-                                <th>Course</th>
-                                <th>Type</th>
-                                <th>Absence Date</th>
-                                <th>Submitted</th>
-                                <th>Status</th>
-                                <th>Actions</th>
+                                <th>ID</th><th>Student</th><th>Course</th><th>Type</th>
+                                <th>Absence Date</th><th>Submitted</th><th>Status</th><th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -463,19 +368,13 @@ try {
                                     <td>#<?php echo $app['id']; ?></td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($app['student_name']); ?></strong><br>
-                                        <small class="text-muted">
-                                            <?php echo getDepartmentName($app['student_dept']); ?> - Year <?php echo $app['student_year']; ?>
-                                        </small>
+                                        <small class="text-muted"><?php echo getDepartmentName($app['student_dept']); ?> - Year <?php echo $app['student_year']; ?></small>
                                     </td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($app['course_code']); ?></strong><br>
                                         <small class="text-muted"><?php echo htmlspecialchars($app['course_name']); ?></small>
                                     </td>
-                                    <td>
-                                        <span class="badge badge-secondary">
-                                            <?php echo ucfirst($app['application_type']); ?>
-                                        </span>
-                                    </td>
+                                    <td><span class="badge badge-secondary"><?php echo ucfirst($app['application_type']); ?></span></td>
                                     <td>
                                         <?php echo date('M j, Y', strtotime($app['application_date'])); ?>
                                         <?php if ($app['application_time']): ?>
@@ -492,48 +391,24 @@ try {
                                         </span>
                                     </td>
                                     <td>
-                                        <!-- <div class="btn-group" role="group">
-                                            <a href="manage_applications.php?id=<?php echo $app['id']; ?>" 
-                                               class="btn btn-primary btn-sm" title="Review">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
-                                            <?php if ($app['status'] === 'pending'): ?>
-                                                <button type="button" class="btn btn-success btn-sm" 
-                                                        onclick="quickApprove(<?php echo $app['id']; ?>)" title="Quick Approve">
-                                                    <i class="fas fa-check"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-danger btn-sm" 
-                                                        onclick="quickReject(<?php echo $app['id']; ?>)" title="Quick Reject">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                            <?php endif; ?>
-                                        </div> -->
-
-
                                         <div class="btn-group" role="group">
-                                            <a href="manage_applications.php?id=<?php echo $app['id']; ?>" 
-                                               class="btn btn-primary btn-sm" title="Review">
+                                            <a href="manage_applications.php?id=<?php echo $app['id']; ?>" class="btn btn-primary btn-sm" title="Review">
                                                 <i class="fas fa-eye"></i>
                                             </a>
                                             <?php if ($app['status'] === 'pending'): ?>
-                                                <button type="button" class="btn btn-success btn-sm" 
-                                                        onclick="quickApprove(<?php echo $app['id']; ?>)" title="Quick Approve">
+                                                <button type="button" class="btn btn-success btn-sm" onclick="quickApprove(<?php echo $app['id']; ?>)" title="Quick Approve">
                                                     <i class="fas fa-check"></i>
                                                 </button>
-                                                <button type="button" class="btn btn-danger btn-sm" 
-                                                        onclick="quickReject(<?php echo $app['id']; ?>)" title="Quick Reject">
+                                                <button type="button" class="btn btn-danger btn-sm" onclick="quickReject(<?php echo $app['id']; ?>)" title="Quick Reject">
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             <?php elseif ($app['status'] === 'hod_approved'): ?>
-                                                <a href="assign_lecturer.php?id=<?php echo $app['id']; ?>" 
-                                                   class="btn btn-warning btn-sm" title="Assign to Lecturer">
+                                                <a href="assign_lecturer.php?id=<?php echo $app['id']; ?>" class="btn btn-warning btn-sm" title="Assign to Lecturer">
                                                     <i class="fas fa-user-plus"></i>
                                                 </a>
                                             <?php endif; ?>
                                         </div>
                                     </td>
-
-
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -543,7 +418,7 @@ try {
                 <!-- Pagination -->
                 <?php if ($totalPages > 1): ?>
                     <div class="d-flex justify-content-center mt-4">
-                        <?php echo generatePagination($page, $totalPages, '?status=' . $statusFilter . '&department=' . $departmentFilter); ?>
+                        <?php echo generatePagination($page, $totalPages, '?status=' . ($filters['status'] ?? '') . '&department=' . ($filters['department'] ?? '')); ?>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
@@ -551,7 +426,7 @@ try {
     </div>
 <?php endif; ?>
 
-<!-- Quick Action Modals -->
+<!-- Quick Action Modal -->
 <div class="modal fade" id="quickActionModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -567,8 +442,7 @@ try {
                     
                     <div class="form-group mb-3">
                         <label for="quickComments" class="form-label">Comments (Optional)</label>
-                        <textarea class="form-control" id="quickComments" name="comments" rows="3"
-                                  placeholder="Add your comments here..."></textarea>
+                        <textarea class="form-control" id="quickComments" name="comments" rows="3" placeholder="Add your comments here..."></textarea>
                     </div>
                 </form>
             </div>
@@ -581,38 +455,27 @@ try {
 </div>
 
 <script>
-// Quick action functions
 function quickApprove(applicationId) {
-    document.getElementById('quickApplicationId').value = applicationId;
-    document.getElementById('quickDecision').value = 'approve';
-    document.getElementById('quickActionTitle').textContent = 'Quick Approve Application';
-    document.getElementById('quickComments').placeholder = 'Add approval comments (optional)...';
-    
-    const modal = new bootstrap.Modal(document.getElementById('quickActionModal'));
-    modal.show();
+    setupQuickAction(applicationId, 'approve', 'Quick Approve Application', 'Add approval comments (optional)...');
 }
 
 function quickReject(applicationId) {
-    document.getElementById('quickApplicationId').value = applicationId;
-    document.getElementById('quickDecision').value = 'reject';
-    document.getElementById('quickActionTitle').textContent = 'Quick Reject Application';
-    document.getElementById('quickComments').placeholder = 'Please provide reason for rejection...';
-    
-    const modal = new bootstrap.Modal(document.getElementById('quickActionModal'));
-    modal.show();
+    setupQuickAction(applicationId, 'reject', 'Quick Reject Application', 'Please provide reason for rejection...');
+}
+
+function setupQuickAction(id, decision, title, placeholder) {
+    document.getElementById('quickApplicationId').value = id;
+    document.getElementById('quickDecision').value = decision;
+    document.getElementById('quickActionTitle').textContent = title;
+    document.getElementById('quickComments').placeholder = placeholder;
+    new bootstrap.Modal(document.getElementById('quickActionModal')).show();
 }
 
 // Auto-submit filters
 document.addEventListener('DOMContentLoaded', function() {
-    const filterSelects = ['status', 'department', 'sort', 'order'];
-    
-    filterSelects.forEach(selectId => {
-        const select = document.getElementById(selectId);
-        if (select) {
-            select.addEventListener('change', function() {
-                this.form.submit();
-            });
-        }
+    ['status', 'department', 'sort', 'order'].forEach(id => {
+        const select = document.getElementById(id);
+        if (select) select.addEventListener('change', () => select.form.submit());
     });
 });
 </script>

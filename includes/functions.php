@@ -1,4 +1,10 @@
 <?php
+// Prevent multiple inclusions
+if (defined('FUNCTIONS_INCLUDED')) {
+    return;
+}
+define('FUNCTIONS_INCLUDED', true);
+
 require_once $_SERVER['DOCUMENT_ROOT'] . '/medex_system/config/database.php';
 
 // Sanitize input
@@ -235,5 +241,122 @@ function generatePagination($currentPage, $totalPages, $baseUrl) {
     
     $pagination .= '</ul></nav>';
     return $pagination;
+}
+
+// Additional notification functions
+
+// Get notifications with pagination
+function getUserNotificationsPaginated($userId, $limit = 20, $offset = 0) {
+    try {
+        $pdo = getConnection();
+        
+        // Convert limit and offset to integers
+        $limit = (int)$limit;
+        $offset = (int)$offset;
+        
+        $sql = "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC";
+        if ($limit > 0) {
+            $sql .= " LIMIT $limit";
+        }
+        if ($offset > 0) {
+            $sql .= " OFFSET $offset";
+        }
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$userId]);
+        $result = $stmt->fetchAll();
+        
+        return $result;
+    } catch(PDOException $e) {
+        return [];
+    }
+}
+
+// Get total notifications count
+function getTotalNotificationsCount($userId) {
+    try {
+        $pdo = getConnection();
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $result = $stmt->fetchColumn();
+        return $result;
+    } catch(PDOException $e) {
+        return 0;
+    }
+}
+
+// Get unread notifications count
+function getUnreadNotificationsCount($userId) {
+    try {
+        $pdo = getConnection();
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0");
+        $stmt->execute([$userId]);
+        $result = $stmt->fetchColumn();
+        return $result;
+    } catch(PDOException $e) {
+        return 0;
+    }
+}
+
+// Mark all notifications as read
+function markAllNotificationsRead($userId) {
+    try {
+        $pdo = getConnection();
+        $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0");
+        return $stmt->execute([$userId]);
+    } catch(PDOException $e) {
+        return false;
+    }
+}
+
+// Delete notification (with user ownership check)
+function deleteNotification($notificationId, $userId) {
+    try {
+        $pdo = getConnection();
+        $stmt = $pdo->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?");
+        return $stmt->execute([$notificationId, $userId]);
+    } catch(PDOException $e) {
+        return false;
+    }
+}
+
+// Get role base path for navigation
+function getRoleBasePath($role) {
+    switch($role) {
+        case 'student':
+            return '../student';
+        case 'admin':
+            return '../admin';
+        case 'hod':
+            return '../hod';
+        case 'lecturer':
+            return '../lecturer';
+        default:
+            return '../';
+    }
+}
+
+// Time ago function for human-readable timestamps
+function timeAgo($datetime) {
+    $time = time() - strtotime($datetime);
+    
+    if ($time < 60) {
+        return 'just now';
+    } elseif ($time < 3600) {
+        $minutes = floor($time / 60);
+        return $minutes . ' minute' . ($minutes > 1 ? 's' : '') . ' ago';
+    } elseif ($time < 86400) {
+        $hours = floor($time / 3600);
+        return $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
+    } elseif ($time < 2592000) {
+        $days = floor($time / 86400);
+        return $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
+    } elseif ($time < 31536000) {
+        $months = floor($time / 2592000);
+        return $months . ' month' . ($months > 1 ? 's' : '') . ' ago';
+    } else {
+        $years = floor($time / 31536000);
+        return $years . ' year' . ($years > 1 ? 's' : '') . ' ago';
+    }
 }
 ?>

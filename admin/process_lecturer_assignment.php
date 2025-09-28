@@ -31,16 +31,16 @@ try {
         exit();
     }
     
-    // Get application details
+    // Get application details (optimized query)
     $stmt = $pdo->prepare("
-        SELECT a.*, u.full_name as student_name, c.course_code, c.course_name
+        SELECT a.id, a.student_id, a.status, u.full_name as student_name, c.course_code, c.course_name
         FROM applications a 
         JOIN users u ON a.student_id = u.id 
         JOIN courses c ON a.course_id = c.id
         WHERE a.id = ? AND a.status = 'hod_approved'
     ");
     $stmt->execute([$application_id]);
-    $application = $stmt->fetch();
+    $application = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$application) {
         $_SESSION['error_message'] = 'Application not found or not ready for lecturer assignment.';
@@ -48,7 +48,7 @@ try {
         exit();
     }
     
-    // Validate lecturer IDs
+    // Validate lecturer IDs (use a more efficient query)
     $placeholders = str_repeat('?,', count($lecturer_ids) - 1) . '?';
     $stmt = $pdo->prepare("
         SELECT id, full_name, email 
@@ -56,7 +56,7 @@ try {
         WHERE id IN ($placeholders) AND role = 'lecturer' AND status = 'active'
     ");
     $stmt->execute($lecturer_ids);
-    $valid_lecturers = $stmt->fetchAll();
+    $valid_lecturers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     if (count($valid_lecturers) !== count($lecturer_ids)) {
         $_SESSION['error_message'] = 'Some selected lecturers are invalid.';
@@ -64,6 +64,8 @@ try {
         exit();
     }
     
+    // Start transaction with better settings for performance
+    $pdo->setAttribute(PDO::ATTR_AUTOCOMMIT, false);
     $pdo->beginTransaction();
     
     try {
@@ -81,27 +83,42 @@ try {
         $notification_message = $message ?: 
             "Medical excuse approved for {$application['student_name']} in {$application['course_code']} - {$application['course_name']}.";
         
+        // Prepare statements for better performance
+        $lecturer_notification_stmt = $pdo->prepare("
+            INSERT INTO lecturer_notifications (application_id, lecturer_id, notified_by) 
+            VALUES (?, ?, ?)
+        ");
+        
+        $general_notification_stmt = $pdo->prepare("
+            INSERT INTO notifications (user_id, application_id, message, type) 
+            VALUES (?, ?, ?, ?)
+        ");
+        
         foreach ($valid_lecturers as $lecturer) {
             // Insert into lecturer_notifications table
-            $stmt = $pdo->prepare("
-                INSERT INTO lecturer_notifications (application_id, lecturer_id, notified_by) 
-                VALUES (?, ?, ?)
-            ");
-            $stmt->execute([$application_id, $lecturer['id'], $user['id']]);
+            $lecturer_notification_stmt->execute([$application_id, $lecturer['id'], $user['id']]);
             
-            // Add general notification
-            addNotification($lecturer['id'], $notification_message, 'info', $application_id);
+            // Add general notification using existing connection
+            $general_notification_stmt->execute([$lecturer['id'], $application_id, $notification_message, 'info']);
         }
         
-        // Log the action
+        // Log the action using existing connection
         $lecturer_names = array_column($valid_lecturers, 'full_name');
-        logAction($user['id'], 'Application Assigned to Lecturers', 
-            "Application ID: $application_id assigned to: " . implode(', ', $lecturer_names));
+        $log_stmt = $pdo->prepare("INSERT INTO system_logs (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)");
+        $log_stmt->execute([
+            $user['id'], 
+            'Application Assigned to Lecturers',
+            "Application ID: $application_id assigned to: " . implode(', ', $lecturer_names),
+            $_SERVER['REMOTE_ADDR']
+        ]);
         
-        // Notify student
-        addNotification($application['student_id'], 
+        // Notify student using existing connection
+        $general_notification_stmt->execute([
+            $application['student_id'], 
+            $application_id,
             'Your medical excuse application has been completed and assigned to the relevant lecturer(s).', 
-            'success', $application_id);
+            'success'
+        ]);
         
         $pdo->commit();
         
